@@ -1,0 +1,149 @@
+/* Keyframes & Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.8);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Landing Page Styles */
+.vinhuni-landing {
+  background: #0f172a;
+  color: #f8fafc;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Header */
+.vinhuni-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
+}
+
+/* Gradient Text */
+.gradient-text-primary {
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-accent {
+  background: linear-gradient(135deg, #34d399 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Hero Section */
+.hero-wrapper {
+  position: relative;
+  padding: 80px 24px 100px;
+  background: radial-gradient(circle at 50% 20%, rgba(99, 102, 241, 0.15) 0%, rgba(15, 23, 42, 0) 70%),
+              radial-gradient(circle at 80% 60%, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0) 50%);
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  color: #a5b4fc;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 24px;
+}
+
+/* Feature Cards */
+.vinhuni-feature-card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.vinhuni-feature-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Role Cards */
+.role-card-admin {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+.role-card-admin:hover {
+  border-color: rgba(239, 68, 68, 0.7) !important;
+  box-shadow: 0 12px 30px rgba(239, 68, 68, 0.2) !important;
+}
+
+.role-card-teacher {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+.role-card-teacher:hover {
+  border-color: rgba(59, 130, 246, 0.7) !important;
+  box-shadow: 0 12px 30px rgba(59, 130, 246, 0.2) !important;
+}
+
+.role-card-technician {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.role-card-technician:hover {
+  border-color: rgba(16, 185, 129, 0.7) !important;
+  box-shadow: 0 12px 30px rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Stat Cards */
+.stat-card-item {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+/* Floating Mockup */
+.floating-mockup {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+/* Footer Links */
+.footer-link {
+  color: #94a3b8;
+  transition: color 0.2s ease;
+  text-decoration: none;
+}
+.footer-link:hover {
+  color: #38bdf8;
+}
