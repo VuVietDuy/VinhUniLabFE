@@ -1,5 +1,7 @@
 import type { PageResponse } from '../type/PageResponse';
 import axiosClient from './axiosClient';
+import type { Room } from './room';
+import type { User } from './user';
 
 export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
@@ -15,6 +17,8 @@ export interface Booking {
   purpose: string;
   status: BookingStatus;
   createdAt: string;
+  user: User;
+  room: Room;
 }
 
 export const bookingApi = {

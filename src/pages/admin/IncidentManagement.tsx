@@ -1,20 +1,76 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Select, Button, Space, Card, message, Popconfirm, Tooltip, Modal, Descriptions } from 'antd';
-import { AlertOutlined, CheckCircleOutlined, DeleteOutlined, EyeOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import {
+  Table,
+  Tag,
+  Select,
+  Button,
+  Space,
+  Card,
+  message,
+  Popconfirm,
+  Tooltip,
+  Modal,
+  Descriptions,
+  Row,
+  Col,
+  Statistic,
+  Input,
+  Badge,
+  Typography
+} from 'antd';
+import {
+  AlertOutlined,
+  CheckCircleOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  UserSwitchOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  ClockCircleOutlined,
+  DesktopOutlined,
+  UserOutlined,
+  ExclamationCircleOutlined,
+  SyncOutlined
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { incidentApi, type Incident, type IncidentStatus, type Priority } from '../../api/incident';
 import { roomApi, type Room } from '../../api/room';
 import { userApi, type User } from '../../api/user';
+
+const { Title, Text } = Typography;
+
+const priorityMap: Record<Priority, { color: string; label: string; icon: React.ReactNode }> = {
+  LOW: { color: 'blue', label: 'Thấp (Nhẹ)', icon: <InfoIcon /> },
+  NORMAL: { color: 'orange', label: 'Trung bình', icon: <ExclamationCircleOutlined /> },
+  HIGH: { color: 'red', label: 'Khẩn cấp', icon: <AlertOutlined /> },
+};
+
+function InfoIcon() {
+  return <ClockCircleOutlined />;
+}
+
+const statusOptions: { value: IncidentStatus; label: string; color: string; icon: React.ReactNode }[] = [
+  { value: 'OPEN', label: 'Mới tiếp nhận', color: 'volcano', icon: <AlertOutlined /> },
+  { value: 'IN_PROGRESS', label: 'Đang sửa chữa', color: 'processing', icon: <SyncOutlined spin /> },
+  { value: 'RESOLVED', label: 'Đã khắc phục', color: 'success', icon: <CheckCircleOutlined /> },
+];
 
 const IncidentManagement: React.FC = () => {
   const [data, setData] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [technicians, setTechnicians] = useState<User[]>([]);
+
+  // Filtering & Pagination
   const [page, setPage] = useState(0);
-  const [filter] = useState("id!=0");
   const [size, setSize] = useState(10);
   const [total, setTotal] = useState(0);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
+  const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
+
+  // Detail Modal
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
@@ -40,7 +96,7 @@ const IncidentManagement: React.FC = () => {
     setLoading(true);
     try {
       const res = await incidentApi.search({
-        filter: filter,
+        filter: 'id!=0',
         page: page,
         size: size,
         sort: ['id,desc'],
@@ -56,7 +112,7 @@ const IncidentManagement: React.FC = () => {
 
   useEffect(() => {
     fetchIncidents();
-  }, [page, size, filter]);
+  }, [page, size]);
 
   useEffect(() => {
     fetchRooms();
@@ -67,6 +123,7 @@ const IncidentManagement: React.FC = () => {
     try {
       await incidentApi.updateStatus(id, newStatus);
       message.success('Đã cập nhật trạng thái sự cố');
+      fetchIncidents();
     } catch {
       message.error('Cập nhật thất bại');
     }
@@ -75,7 +132,8 @@ const IncidentManagement: React.FC = () => {
   const handleAssignTechnician = async (id: number, technicianId: number) => {
     try {
       await incidentApi.assignTechnician(id, technicianId);
-      message.success('Đã gán kỹ thuật viên xử lý sự cố');
+      message.success('Đã gán kỹ thuật viên xử lý sự cố thành công');
+      fetchIncidents();
     } catch {
       message.error('Gán kỹ thuật viên thất bại');
     }
@@ -86,160 +144,158 @@ const IncidentManagement: React.FC = () => {
     setIsDetailModalOpen(true);
   };
 
-  const priorityMap: Record<Priority, { color: string; label: string }> = {
-    LOW: { color: 'blue', label: 'Thấp' },
-    NORMAL: { color: 'orange', label: 'Trung bình' },
-    HIGH: { color: 'red', label: 'Khẩn cấp' },
-  };
-
-  const statusOptions: { value: IncidentStatus; label: string; color: string }[] = [
-    { value: 'OPEN', label: 'Mới tiếp nhận', color: 'magenta' },
-    { value: 'IN_PROGRESS', label: 'Đang sửa chữa', color: 'processing' },
-    { value: 'RESOLVED', label: 'Đã khắc phục', color: 'success' },
-  ];
+  // Client-side Filtered Data
+  const filteredData = data.filter((item) => {
+    if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
+    if (priorityFilter !== 'ALL' && item.priority !== priorityFilter) return false;
+    if (selectedRoomId && item.computer?.roomId !== selectedRoomId) return false;
+    if (searchText.trim()) {
+      const kw = searchText.toLowerCase().trim();
+      const descMatch = item.description?.toLowerCase().includes(kw);
+      const codeMatch = item.computer?.computerCode?.toLowerCase().includes(kw);
+      const reporterMatch = (item.reportedBy?.fullName || item.reportedBy?.username || '').toLowerCase().includes(kw);
+      return descMatch || codeMatch || reporterMatch;
+    }
+    return true;
+  });
 
   const getRoomName = (incident: Incident) => {
     const room = rooms.find(item => item.id === incident.computer?.roomId);
     return room?.roomName || incident.roomName || '-';
   };
 
-  const getReporterName = (reportedBy: Incident['reportedBy'] | string | undefined) => {
-    if (!reportedBy) return '-';
-    return typeof reportedBy === 'string' ? reportedBy : reportedBy.fullName || reportedBy.username || '-';
-  };
-
-  const getTechnicianName = (incident: Incident) => {
-    const technician = (incident as Incident & { technician?: User | null }).technician || incident.assignedTo;
-    return technician?.fullName || technician?.username || '-';
-  };
-
-  const getStatusOption = (status: IncidentStatus) => (
-    statusOptions.find(option => option.value === status)
-  );
+  const openCount = data.filter(i => i.status === 'OPEN').length;
+  const inProgressCount = data.filter(i => i.status === 'IN_PROGRESS').length;
+  const resolvedCount = data.filter(i => i.status === 'RESOLVED').length;
 
   const columns: ColumnsType<Incident> = [
     {
       title: 'STT',
       key: 'index',
-      width: 70,
+      width: 60,
       render: (_value, _record, index) => (page * size) + index + 1,
     },
     {
       title: 'Mức độ',
       dataIndex: 'priority',
       key: 'priority',
-      width: 120,
-      render: (priority: Priority) => (
-        <Tag color={priorityMap[priority].color} style={{ fontWeight: 'bold' }}>
-          {priorityMap[priority].label}
-        </Tag>
-      ),
+      width: 130,
+      render: (priority: Priority) => {
+        const item = priorityMap[priority] || priorityMap.NORMAL;
+        return (
+          <Tag color={item.color} style={{ fontWeight: 600, padding: '2px 8px' }}>
+            {item.icon} {item.label}
+          </Tag>
+        );
+      },
     },
     {
-      title: 'Phòng',
-      dataIndex: 'computer',
-      key: 'room',
-      render: (computer: { roomId?: number }) => {
-        const room = rooms.find(item => item.id === computer?.roomId);
-        return room ? room.roomName : '-';
-      },
-      filters: rooms.map(room => ({ text: room.roomName, value: room.roomName })),
-      filterSearch: true,
-      onFilter: (value, record) => {
-        const room = rooms.find(item => item.id === record.computer?.roomId);
-        return room ? room.roomName.includes(value as string) : false;
+      title: 'Vị trí / Máy',
+      key: 'computer',
+      render: (_, record) => {
+        const roomName = getRoomName(record);
+        return (
+          <Space direction="vertical" size={2}>
+            <Text strong style={{ color: '#1890ff' }}>
+              <DesktopOutlined /> {record.computer?.computerCode || `Máy #${record.computerId}`}
+            </Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Phòng: {roomName}
+            </Text>
+          </Space>
+        );
       }
     },
     {
-      title: 'Mã máy',
-      dataIndex: 'computer',
-      key: 'computer',
-      render: (computer: { computerCode?: string }) => (
-        computer?.computerCode ? <b>{computer.computerCode}</b> : '-'
-      ),
+      title: 'Mô tả sự cố',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      render: (desc: string) => (
+        <Tooltip title={desc}>
+          <span style={{ fontWeight: 500 }}>{desc || 'Không có mô tả'}</span>
+        </Tooltip>
+      )
     },
     {
-      title: 'Người báo',
-      dataIndex: 'reportedBy',
+      title: 'Người báo cáo',
       key: 'reportedBy',
-      render: (reportedBy: { fullName?: string } | string) => (
-        typeof reportedBy === 'string' ? reportedBy : reportedBy?.fullName || '-'
-      ),
+      render: (_, record) => (
+        <Space>
+          <UserOutlined style={{ color: '#8c8c8c' }} />
+          <span>{record.reportedBy?.fullName || record.reportedBy?.username || 'Giảng viên'}</span>
+        </Space>
+      )
     },
     {
-      title: 'Ngày báo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (createdAt: string) => new Date(createdAt).toLocaleString(),
-    },
-    {
-      title: 'Kỹ thuật viên',
-      dataIndex: 'technician',
+      title: 'Kỹ thuật viên phụ trách',
       key: 'technician',
-      width: 220,
-      render: (technician: User | null | undefined, record) => (
-        <Select
-          placeholder="Chọn kỹ thuật viên"
-          value={technician?.id}
-          style={{ width: 200 }}
-          showSearch
-          optionFilterProp="label"
-          suffixIcon={<UserSwitchOutlined />}
-          onChange={technicianId => handleAssignTechnician(record.id, technicianId)}
-          options={technicians.map(technician => ({
-            value: technician.id,
-            label: technician.fullName || technician.username,
-          }))}
-        />
-      ),
+      width: 210,
+      render: (_, record) => {
+        const tech = record.assignedTo || (record as any).technician;
+        return (
+          <Select
+            placeholder="Phân công KTV..."
+            value={tech?.id}
+            style={{ width: 190 }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            suffixIcon={<UserSwitchOutlined />}
+            onChange={technicianId => handleAssignTechnician(record.id, technicianId)}
+            options={technicians.map(t => ({
+              value: t.id,
+              label: t.fullName || t.username,
+            }))}
+          />
+        );
+      },
     },
     {
-      title: 'Trạng thái xử lý',
+      title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
+      width: 160,
       render: (status: IncidentStatus, record) => (
         <Select
           value={status}
-          style={{ width: 150 }}
+          style={{ width: 145 }}
           onChange={newStatus => handleStatusChange(record.id, newStatus)}
-          options={statusOptions.map(option => ({
-            value: option.value,
-            label: <Tag color={option.color}>{option.label}</Tag>,
+          options={statusOptions.map(opt => ({
+            value: opt.value,
+            label: <Tag color={opt.color}>{opt.label}</Tag>,
           }))}
         />
       ),
-    },
-    {
-      title: 'Thời gian khắc phục',
-      dataIndex: 'resolvedAt',
-      key: 'resolvedAt',
-      render: (resolvedAt: string | null) => {
-        if (!resolvedAt) return '-';
-        return new Date(resolvedAt).toLocaleString();
-      },
     },
     {
       title: 'Thao tác',
       key: 'action',
+      width: 120,
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Tooltip title="Xem chi tiết">
             <Button
               type="text"
-              icon={<EyeOutlined />}
+              icon={<EyeOutlined style={{ color: '#1890ff' }} />}
               onClick={() => handleViewIncident(record)}
             />
           </Tooltip>
-          <Tooltip title="Đánh dấu đã xong nhanh">
-            <Button
-              type="text"
-              icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-              onClick={() => handleStatusChange(record.id, 'RESOLVED')}
-            />
-          </Tooltip>
+          {record.status !== 'RESOLVED' && (
+            <Tooltip title="Hoàn thành nhanh">
+              <Button
+                type="text"
+                icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                onClick={() => handleStatusChange(record.id, 'RESOLVED')}
+              />
+            </Tooltip>
+          )}
           <Popconfirm
             title="Xóa báo cáo này?"
-            onConfirm={() => incidentApi.delete(record.id).then(() => fetchIncidents())}
+            onConfirm={() => incidentApi.delete(record.id).then(() => {
+              message.success('Đã xóa báo cáo sự cố!');
+              fetchIncidents();
+            })}
           >
             <Button type="text" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -249,75 +305,182 @@ const IncidentManagement: React.FC = () => {
   ];
 
   return (
-    <Card
-      style={{ margin: '16px 16px' }}
-      title={<span><AlertOutlined /> Quản lý danh sách sự cố hệ thống</span>}
-    >
-      <Table
-        columns={columns}
-        dataSource={data}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          current: page + 1,
-          pageSize: size,
-          total,
-          onChange: (page, pageSize) => {
-            setPage(page - 1);
-            setSize(pageSize);
-          },
-        }}
-      />
+    <div style={{ padding: 16 }}>
+      {/* Top Banner KPI Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={6}>
+          <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+            <Statistic
+              title="Tổng số sự cố"
+              value={total}
+              prefix={<AlertOutlined style={{ color: '#1890ff' }} />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+            <Statistic
+              title="Mới tiếp nhận (Cần sửa)"
+              value={openCount}
+              valueStyle={{ color: '#ff4d4f', fontWeight: 600 }}
+              prefix={<Badge status="error" />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+            <Statistic
+              title="Đang sửa chữa"
+              value={inProgressCount}
+              valueStyle={{ color: '#1890ff' }}
+              prefix={<SyncOutlined spin />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={6}>
+          <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+            <Statistic
+              title="Đã khắc phục xong"
+              value={resolvedCount}
+              valueStyle={{ color: '#52c41a' }}
+              prefix={<CheckCircleOutlined />}
+            />
+          </Card>
+        </Col>
+      </Row>
 
-      <Modal
-        title="Chi tiết sự cố"
-        open={isDetailModalOpen}
-        onCancel={() => setIsDetailModalOpen(false)}
-        footer={null}
-        width={720}
+      {/* Main Table Card */}
+      <Card
+        title={
+          <span>
+            <AlertOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />
+            Quản lý Báo cáo Sự cố Hệ thống Phòng máy
+          </span>
+        }
+        extra={
+          <Button icon={<ReloadOutlined />} onClick={fetchIncidents}>
+            Làm mới
+          </Button>
+        }
+        style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
       >
-        {selectedIncident && (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Mức độ">
-              <Tag color={priorityMap[selectedIncident.priority].color}>
-                {priorityMap[selectedIncident.priority].label}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Trạng thái">
-              {(() => {
-                const statusOption = getStatusOption(selectedIncident.status);
-                return statusOption ? (
-                  <Tag color={statusOption.color}>{statusOption.label}</Tag>
-                ) : selectedIncident.status;
-              })()}
-            </Descriptions.Item>
-            <Descriptions.Item label="Phòng">
-              {getRoomName(selectedIncident)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Mã máy">
-              {selectedIncident.computer?.computerCode || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Người báo">
-              {getReporterName(selectedIncident.reportedBy)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Ngày báo">
-              {selectedIncident.createdAt ? new Date(selectedIncident.createdAt).toLocaleString() : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Kỹ thuật viên">
-              {getTechnicianName(selectedIncident)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Nội dung sự cố">
-              {selectedIncident.description || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Thời gian khắc phục">
-              {selectedIncident.resolvedAt ? new Date(selectedIncident.resolvedAt).toLocaleString() : '-'}
-            </Descriptions.Item>
-          </Descriptions>
-        )}
-      </Modal>
-    </Card>
+        {/* Search & Filter Bar */}
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={8}>
+            <Input
+              allowClear
+              placeholder="Tìm theo mô tả lỗi, mã máy, người báo..."
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+          </Col>
+          <Col xs={12} sm={5}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Lọc phòng máy"
+              allowClear
+              value={selectedRoomId}
+              onChange={setSelectedRoomId}
+              options={rooms.map(r => ({ value: r.id, label: r.roomName }))}
+            />
+          </Col>
+          <Col xs={12} sm={5}>
+            <Select
+              style={{ width: '100%' }}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'ALL', label: 'Tất cả trạng thái' },
+                { value: 'OPEN', label: 'Mới tiếp nhận' },
+                { value: 'IN_PROGRESS', label: 'Đang sửa chữa' },
+                { value: 'RESOLVED', label: 'Đã khắc phục' },
+              ]}
+            />
+          </Col>
+          <Col xs={12} sm={6}>
+            <Select
+              style={{ width: '100%' }}
+              value={priorityFilter}
+              onChange={setPriorityFilter}
+              options={[
+                { value: 'ALL', label: 'Tất cả mức độ' },
+                { value: 'HIGH', label: '🔴 Khẩn cấp' },
+                { value: 'NORMAL', label: '🟠 Trung bình' },
+                { value: 'LOW', label: '🔵 Thấp' },
+              ]}
+            />
+          </Col>
+        </Row>
+
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            current: page + 1,
+            pageSize: size,
+            total,
+            onChange: (p, s) => {
+              setPage(p - 1);
+              setSize(s);
+            },
+          }}
+        />
+
+        {/* Modal xem chi tiết sự cố */}
+        <Modal
+          title={
+            <span>
+              <AlertOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />
+              Chi tiết sự cố #{selectedIncident?.id}
+            </span>
+          }
+          open={isDetailModalOpen}
+          onCancel={() => setIsDetailModalOpen(false)}
+          footer={[
+            <Button key="close" onClick={() => setIsDetailModalOpen(false)}>
+              Đóng
+            </Button>
+          ]}
+          width={650}
+        >
+          {selectedIncident && (
+            <Descriptions bordered column={1} size="small" style={{ marginTop: 12 }}>
+              <Descriptions.Item label="Mức độ sự cố">
+                {(() => {
+                  const p = priorityMap[selectedIncident.priority] || priorityMap.NORMAL;
+                  return <Tag color={p.color}>{p.label}</Tag>;
+                })()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Trạng thái">
+                {(() => {
+                  const st = statusOptions.find(o => o.value === selectedIncident.status);
+                  return <Tag color={st?.color || 'default'}>{st?.label || selectedIncident.status}</Tag>;
+                })()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Phòng & Máy tính">
+                <b>{selectedIncident.computer?.computerCode || `Máy #${selectedIncident.computerId}`}</b> (Phòng: {getRoomName(selectedIncident)})
+              </Descriptions.Item>
+              <Descriptions.Item label="Thời gian báo cáo">
+                {selectedIncident.createdAt ? new Date(selectedIncident.createdAt).toLocaleString() : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Kỹ thuật viên phụ trách">
+                {selectedIncident.assignedTo?.fullName || (selectedIncident as any).technician?.fullName || 'Chưa phân công'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Mô tả chi tiết lỗi">
+                {selectedIncident.description || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Thời gian khắc phục">
+                {selectedIncident.resolvedAt ? new Date(selectedIncident.resolvedAt).toLocaleString() : 'Chưa xử lý'}
+              </Descriptions.Item>
+            </Descriptions>
+          )}
+        </Modal>
+      </Card>
+    </div>
   );
 };
 
 export default IncidentManagement;
-

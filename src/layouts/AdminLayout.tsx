@@ -6,14 +6,16 @@ import {
   UserOutlined,
   LogoutOutlined,
   DownOutlined,
-  ProfileOutlined
+  ProfileOutlined,
+  ClockCircleOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Layout, Menu, theme, Dropdown, Avatar, Space, message } from 'antd';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
-const { Header, Content, Footer, Sider } = Layout;
+const { Header, Footer, Sider } = Layout;
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -35,6 +37,8 @@ const items: MenuItem[] = [
   getItem('Thống kê', '/admin', <PieChartOutlined />),
   getItem('Quản lý phòng', '/admin/room-management', <DesktopOutlined />),
   getItem('Quản lý máy tính', '/admin/computer-management', <UserOutlined />),
+  getItem('Quản lý tiết học', '/admin/time-slot-management', <ClockCircleOutlined />),
+  getItem('Lịch phòng máy', '/admin/room-schedule', <CalendarOutlined />),
   getItem('Quản lý đặt phòng', '/admin/booking-management', <UserOutlined />),
   getItem('Quản lý báo cáo sự cố', '/admin/incident-management', <FileOutlined />),
   getItem('Quản lý người dùng', '/admin/user-management', <UserOutlined />),
@@ -43,7 +47,7 @@ const items: MenuItem[] = [
 const AdminLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { colorBgContainer },
   } = theme.useToken();
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -63,7 +67,7 @@ const AdminLayout: React.FC = () => {
       key: 'profile',
       label: 'Trang cá nhân',
       icon: <ProfileOutlined />,
-      onClick: () => message.info('Chức năng đang phát triển'),
+      onClick: () => navigate('/admin/profile'),
     },
     {
       type: 'divider',

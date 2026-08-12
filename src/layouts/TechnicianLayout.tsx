@@ -49,7 +49,7 @@ const TechnicianLayout: React.FC = () => {
       key: 'profile',
       label: 'Trang cá nhân',
       icon: <ProfileOutlined />,
-      onClick: () => message.info('Chức năng đang phát triển'),
+      onClick: () => navigate('/technician/profile'),
     },
     {
       type: 'divider',
@@ -98,16 +98,7 @@ const TechnicianLayout: React.FC = () => {
           </Dropdown>
         </Header>
         <Content style={{ margin: '16px 16px' }}>
-          <div
-            style={{
-              padding: 24,
-              minHeight: 360,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}
-          >
-            <Outlet />
-          </div>
+          <Outlet />
         </Content>
         <Footer style={{ textAlign: 'center' }}>
           VinhUniLab ©{new Date().getFullYear()}

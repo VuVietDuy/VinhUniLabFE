@@ -6,10 +6,11 @@ import {
   UserOutlined,
   LogoutOutlined,
   DownOutlined,
-  ProfileOutlined
+  ProfileOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { Breadcrumb, Layout, Menu, theme, Dropdown, Avatar, Space, message } from 'antd';
+import { Layout, Menu, theme, Dropdown, Avatar, Space, message } from 'antd';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
@@ -34,6 +35,7 @@ function getItem(
 const items: MenuItem[] = [
   getItem('Thống kê', '/teacher', <PieChartOutlined />),
   getItem('Quản lý mượn phòng', '/teacher/booking-management', <DesktopOutlined />),
+  getItem('Lịch phòng máy', '/teacher/room-schedule', <CalendarOutlined />),
   getItem('Quản lý báo cáo sự cố', '/teacher/report-management', <FileOutlined />),
 ];
 
@@ -60,7 +62,7 @@ const TeacherLayout: React.FC = () => {
       key: 'profile',
       label: 'Trang cá nhân',
       icon: <ProfileOutlined />,
-      onClick: () => message.info('Chức năng đang phát triển'),
+      onClick: () => navigate('/teacher/profile'),
     },
     {
       type: 'divider',
@@ -91,16 +93,7 @@ const TeacherLayout: React.FC = () => {
           </Dropdown>
         </Header>
         <Content style={{ margin: '16px 16px' }}>
-          <div
-            style={{
-              padding: 24,
-              minHeight: 360,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}
-          >
-            <Outlet />
-          </div>
+          <Outlet />
         </Content>
         <Footer style={{ textAlign: 'center' }}>
           VinhUniLab ©{new Date().getFullYear()}
