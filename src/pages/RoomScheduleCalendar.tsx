@@ -19,7 +19,10 @@ import {
   Input,
   message,
   Popover,
-  Empty
+  Empty,
+  Segmented,
+  Spin,
+  Table
 } from 'antd';
 import {
   CalendarOutlined,
@@ -30,7 +33,9 @@ import {
   PlusOutlined,
   DesktopOutlined,
   UserOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  LeftOutlined,
+  RightOutlined
 } from '@ant-design/icons';
 import type { CalendarProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -46,6 +51,7 @@ export const statusConfig: Record<BookingStatus, { color: string; badgeStatus: '
   PENDING: { color: 'gold', badgeStatus: 'warning', text: 'Đang chờ', icon: <SyncOutlined spin /> },
   REJECTED: { color: 'red', badgeStatus: 'error', text: 'Từ chối', icon: <CloseCircleOutlined /> },
   CANCELLED: { color: 'gray', badgeStatus: 'default', text: 'Đã hủy', icon: <CloseCircleOutlined /> },
+  RETURNED: { color: 'cyan', badgeStatus: 'success', text: 'Đã trả phòng', icon: <CheckCircleOutlined /> },
 };
 
 const RoomScheduleCalendar: React.FC = () => {
@@ -53,8 +59,19 @@ const RoomScheduleCalendar: React.FC = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // Chế độ xem: Month Calendar vs Weekly Timetable Matrix
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+
+  const getMonday = (d: Dayjs) => {
+    const day = d.day();
+    if (day === 0) return d.subtract(6, 'day');
+    return d.subtract(day - 1, 'day');
+  };
+
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Dayjs>(getMonday(dayjs()));
 
   // Modal xem chi tiết ngày được chọn
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
@@ -133,6 +150,37 @@ const RoomScheduleCalendar: React.FC = () => {
       const bDate = b.bookingDate || (b.startTime ? b.startTime.split('T')[0] : '');
       return bDate === dateStr;
     });
+  };
+
+  // Kiểm tra 1 tiết học có bị trùng lịch trong ngày cụ thể không
+  const checkSlotStatus = (slot: TimeSlot, checkDate: Dayjs) => {
+    if (!slot.startTime || !slot.endTime || !filteredBookings || filteredBookings.length === 0) {
+      return { isBooked: false, bookingInfo: null };
+    }
+
+    const dateStr = checkDate.format('YYYY-MM-DD');
+    const slotStartStr = `${dateStr}T${slot.startTime.substring(0, 5)}:00`;
+    const slotEndStr = `${dateStr}T${slot.endTime.substring(0, 5)}:00`;
+    const slotStart = dayjs(slotStartStr);
+    const slotEnd = dayjs(slotEndStr);
+
+    const existingBooking = filteredBookings.find(b => {
+      if (b.status === 'REJECTED' || b.status === 'CANCELLED' || b.status === 'RETURNED') {
+        return false;
+      }
+      const bDate = b.bookingDate || (b.startTime ? b.startTime.split('T')[0] : '');
+      if (bDate !== dateStr) return false;
+
+      const bStart = dayjs(b.startTime);
+      const bEnd = dayjs(b.endTime);
+
+      return bStart.isBefore(slotEnd) && bEnd.isAfter(slotStart);
+    });
+
+    if (existingBooking) {
+      return { isBooked: true, bookingInfo: existingBooking };
+    }
+    return { isBooked: false, bookingInfo: null };
   };
 
   // Render ô lịch (dateCellRender)
@@ -358,19 +406,191 @@ const RoomScheduleCalendar: React.FC = () => {
         )}
       </Card>
 
-      {/* Main Calendar View */}
+      {/* Main Calendar / Weekly Schedule View */}
       <Card style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Text strong>Chú thích trạng thái:</Text>
-          <Tag color="green"><Badge status="success" /> Đã duyệt</Tag>
-          <Tag color="gold"><Badge status="warning" /> Đang chờ duyệt</Tag>
-          <Tag color="red"><Badge status="error" /> Từ chối</Tag>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <Space align="center" wrap>
+            <Text strong style={{ fontSize: 14 }}>Chế độ xem:</Text>
+            <Segmented
+              value={viewMode}
+              onChange={(val) => setViewMode(val as 'month' | 'week')}
+              options={[
+                { label: '🗓️ Lịch Tháng (Calendar)', value: 'month' },
+                { label: '📅 Lịch Tuần (Thời khóa biểu)', value: 'week' },
+              ]}
+            />
+          </Space>
+
+          {viewMode === 'month' ? (
+            <Space wrap size={12} style={{ fontSize: 12 }}>
+              <Text strong>Chú thích:</Text>
+              <Tag color="green"><Badge status="success" /> Đã duyệt</Tag>
+              <Tag color="gold"><Badge status="warning" /> Đang chờ</Tag>
+              <Tag color="red"><Badge status="error" /> Từ chối</Tag>
+            </Space>
+          ) : (
+            <Space wrap align="center">
+              <Button
+                icon={<LeftOutlined />}
+                onClick={() => setSelectedWeekStart(prev => prev.subtract(1, 'week'))}
+              >
+                Tuần trước
+              </Button>
+              <Button
+                onClick={() => setSelectedWeekStart(getMonday(dayjs()))}
+                type={selectedWeekStart.isSame(getMonday(dayjs()), 'day') ? 'primary' : 'default'}
+              >
+                Tuần này
+              </Button>
+              <Button
+                onClick={() => setSelectedWeekStart(prev => prev.add(1, 'week'))}
+              >
+                Tuần sau <RightOutlined />
+              </Button>
+              <DatePicker
+                picker="week"
+                format="[Tuần] ww (YYYY)"
+                onChange={(date) => {
+                  if (date) setSelectedWeekStart(getMonday(date));
+                }}
+                style={{ width: 150 }}
+              />
+            </Space>
+          )}
         </div>
 
-        <Calendar
-          cellRender={cellRender}
-          onSelect={handleSelectDate}
-        />
+        {viewMode === 'month' ? (
+          <Calendar
+            cellRender={cellRender}
+            onSelect={handleSelectDate}
+          />
+        ) : (
+          <div>
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong style={{ fontSize: 14, color: '#1677ff' }}>
+                <CalendarOutlined style={{ marginRight: 6 }} />
+                Thời khóa biểu tuần: Từ {getMonday(selectedWeekStart).format('DD/MM/YYYY')} đến {getMonday(selectedWeekStart).add(6, 'day').format('DD/MM/YYYY')}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Bấm vào ô trống để đăng ký mượn phòng
+              </Text>
+            </div>
+
+            <Table
+              bordered
+              pagination={false}
+              rowKey="id"
+              loading={loading}
+              scroll={{ x: 1000 }}
+              dataSource={timeSlots}
+              columns={[
+                {
+                  title: 'Tiết học / Khung giờ',
+                  key: 'timeSlot',
+                  width: 140,
+                  fixed: 'left',
+                  render: (_, record: TimeSlot) => (
+                    <div style={{ textAlign: 'center' }}>
+                      <Text strong style={{ color: '#1677ff', display: 'block' }}>{record.slotName}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {record.startTime?.substring(0, 5)} - {record.endTime?.substring(0, 5)}
+                      </Text>
+                    </div>
+                  )
+                },
+                ...Array.from({ length: 7 }, (_, i) => {
+                  const dayObj = getMonday(selectedWeekStart).add(i, 'day');
+                  const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
+                  const isToday = dayObj.isSame(dayjs(), 'day');
+
+                  return {
+                    title: (
+                      <div style={{ textAlign: 'center', backgroundColor: isToday ? '#e6f4ff' : 'transparent', padding: '4px 0', borderRadius: 4 }}>
+                        <Text strong style={{ color: isToday ? '#1677ff' : '#262626', display: 'block' }}>
+                          {dayNames[i]}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: isToday ? '#1677ff' : '#8c8c8c' }}>
+                          {dayObj.format('DD/MM')}
+                        </Text>
+                        {isToday && <Tag color="blue" style={{ fontSize: 10, margin: '2px 0 0 0' }}>Hôm nay</Tag>}
+                      </div>
+                    ),
+                    key: `day_${i}`,
+                    align: 'center' as const,
+                    render: (_: any, slot: TimeSlot) => {
+                      const { isBooked, bookingInfo } = checkSlotStatus(slot, dayObj);
+
+                      if (isBooked && bookingInfo) {
+                        const statusMeta = statusConfig[bookingInfo.status as BookingStatus] || statusConfig.PENDING;
+                        return (
+                          <Popover
+                            title="Chi tiết lượt mượn"
+                            content={
+                              <div style={{ maxWidth: 240 }}>
+                                <p style={{ margin: 0, fontWeight: 600 }}>{bookingInfo.purpose || 'Mượn phòng'}</p>
+                                <p style={{ margin: '4px 0 0 0', fontSize: 12 }}>
+                                  👤 Người đặt: <b>{bookingInfo.user?.fullName || bookingInfo.userName || 'Giáo viên'}</b>
+                                </p>
+                                <p style={{ margin: '2px 0 0 0', fontSize: 12 }}>
+                                  ⏰ Khung giờ: <b>{slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}</b>
+                                </p>
+                                <div style={{ marginTop: 6 }}>
+                                  <Tag color={statusMeta.color}>{statusMeta.text}</Tag>
+                                </div>
+                              </div>
+                            }
+                          >
+                            <div
+                              style={{
+                                padding: '6px 8px',
+                                borderRadius: 6,
+                                background: bookingInfo.status === 'APPROVED' ? '#f6ffed' : '#fffbe6',
+                                border: `1px solid ${bookingInfo.status === 'APPROVED' ? '#b7eb8f' : '#ffe58f'}`,
+                                fontSize: 12,
+                                textAlign: 'center',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Tag color={statusMeta.color} style={{ margin: 0, fontSize: 10 }}>
+                                {statusMeta.text}
+                              </Tag>
+                              <div style={{ fontWeight: 600, marginTop: 4, color: '#262626', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {bookingInfo.purpose || 'Đã đăng ký'}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#8c8c8c' }}>
+                                {bookingInfo.user?.fullName || bookingInfo.userName || ''}
+                              </div>
+                            </div>
+                          </Popover>
+                        );
+                      }
+
+                      return (
+                        <div
+                          onClick={() => handleOpenAddModal(dayObj)}
+                          style={{
+                            padding: '8px 4px',
+                            borderRadius: 6,
+                            background: '#fafafa',
+                            border: '1px dashed #d9d9d9',
+                            fontSize: 12,
+                            color: '#52c41a',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <PlusOutlined style={{ marginRight: 4 }} />
+                          Đặt phòng
+                        </div>
+                      );
+                    }
+                  };
+                })
+              ]}
+            />
+          </div>
+        )}
       </Card>
 
       {/* Modal xem chi tiết danh sách lịch mượn của ngày được chọn */}

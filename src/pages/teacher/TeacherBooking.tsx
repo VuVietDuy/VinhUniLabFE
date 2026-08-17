@@ -36,7 +36,9 @@ import {
   SendOutlined,
   InfoCircleOutlined,
   RollbackOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  LeftOutlined,
+  RightOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { bookingApi, type BookingStatus } from '../../api/booking';
@@ -57,6 +59,14 @@ const TeacherBooking: React.FC = () => {
   // Selected state for Visual Booking Form
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
   const [selectedSlotId, setSelectedSlotId] = useState<number | undefined>(undefined);
+  // Helper lấy Thứ 2 của tuần chứa ngày d
+  const getMonday = (d: dayjs.Dayjs) => {
+    const day = d.day();
+    if (day === 0) return d.subtract(6, 'day');
+    return d.subtract(day - 1, 'day');
+  };
+
+  const [selectedWeekStart, setSelectedWeekStart] = useState<dayjs.Dayjs>(getMonday(dayjs()));
   const [selectedCheckDate, setSelectedCheckDate] = useState<dayjs.Dayjs>(dayjs());
   const [roomBookings, setRoomBookings] = useState<any[]>([]);
   const [roomBookingsLoading, setRoomBookingsLoading] = useState(false);
@@ -411,6 +421,195 @@ const TeacherBooking: React.FC = () => {
                     loading={loading}
                     pagination={pagination}
                     onChange={handleTableChange}
+                  />
+                </div>
+              )
+            },
+            {
+              key: 'weekly-schedule',
+              label: (
+                <span>
+                  <CalendarOutlined /> Thời khóa biểu theo Tuần (Weekly Matrix)
+                </span>
+              ),
+              children: (
+                <div style={{ paddingTop: 8 }}>
+                  {/* Controls Header: Select Room & Week Navigation */}
+                  <Row gutter={[16, 16]} align="middle" justify="space-between" style={{ marginBottom: 16, background: '#fafafa', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                    <Col xs={24} md={8}>
+                      <Space align="center" style={{ width: '100%' }}>
+                        <Text strong style={{ fontSize: 14 }}>Phòng máy:</Text>
+                        <Select
+                          style={{ minWidth: 200 }}
+                          value={selectedRoomId}
+                          onChange={handleSelectRoom}
+                          options={rooms.map(r => ({ value: r.id, label: `${r.roomName} (${r.location || 'Khu Lab'})` }))}
+                        />
+                        {roomBookingsLoading && <Spin size="small" />}
+                      </Space>
+                    </Col>
+                    <Col xs={24} md={16} style={{ textAlign: 'right' }}>
+                      <Space wrap align="center">
+                        <Button
+                          icon={<LeftOutlined />}
+                          onClick={() => setSelectedWeekStart(prev => prev.subtract(1, 'week'))}
+                        >
+                          Tuần trước
+                        </Button>
+
+                        <Button
+                          onClick={() => setSelectedWeekStart(getMonday(dayjs()))}
+                          type={selectedWeekStart.isSame(getMonday(dayjs()), 'day') ? 'primary' : 'default'}
+                        >
+                          Tuần này
+                        </Button>
+
+                        <Button
+                          onClick={() => setSelectedWeekStart(prev => prev.add(1, 'week'))}
+                        >
+                          Tuần sau <RightOutlined />
+                        </Button>
+
+                        <DatePicker
+                          picker="week"
+                          format="[Tuần] ww (YYYY)"
+                          onChange={(date) => {
+                            if (date) setSelectedWeekStart(getMonday(date));
+                          }}
+                          style={{ width: 150 }}
+                        />
+                      </Space>
+                    </Col>
+                  </Row>
+
+                  {/* Week Banner Info */}
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ fontSize: 15, color: '#1677ff' }}>
+                      <CalendarOutlined style={{ marginRight: 6 }} />
+                      Lịch mượn phòng {rooms.find(r => r.id === selectedRoomId)?.roomName}: Từ ngày {getMonday(selectedWeekStart).format('DD/MM/YYYY')} đến ngày {getMonday(selectedWeekStart).add(6, 'day').format('DD/MM/YYYY')}
+                    </Text>
+                    <Space size={16} style={{ fontSize: 12 }}>
+                      <span><Badge status="success" /> <Text type="success">Đã duyệt (Chắc chắn bận)</Text></span>
+                      <span><Badge status="warning" /> <Text type="warning">Chờ duyệt</Text></span>
+                      <span><Badge status="default" /> <Text type="secondary">Bấm vào ô trống để đăng ký</Text></span>
+                    </Space>
+                  </div>
+
+                  {/* Weekly Matrix Table */}
+                  <Table
+                    bordered
+                    pagination={false}
+                    rowKey="id"
+                    loading={roomBookingsLoading}
+                    scroll={{ x: 1000 }}
+                    dataSource={timeSlots}
+                    columns={[
+                      {
+                        title: 'Tiết học / Khung giờ',
+                        key: 'timeSlot',
+                        width: 140,
+                        fixed: 'left',
+                        render: (_, record: TimeSlot) => (
+                          <div style={{ textAlign: 'center' }}>
+                            <Text strong style={{ color: '#1677ff', display: 'block' }}>{record.slotName}</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {record.startTime?.substring(0, 5)} - {record.endTime?.substring(0, 5)}
+                            </Text>
+                          </div>
+                        )
+                      },
+                      ...Array.from({ length: 7 }, (_, i) => {
+                        const dayObj = getMonday(selectedWeekStart).add(i, 'day');
+                        const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
+                        const isToday = dayObj.isSame(dayjs(), 'day');
+
+                        return {
+                          title: (
+                            <div style={{ textAlign: 'center', backgroundColor: isToday ? '#e6f4ff' : 'transparent', padding: '4px 0', borderRadius: 4 }}>
+                              <Text strong style={{ color: isToday ? '#1677ff' : '#262626', display: 'block' }}>
+                                {dayNames[i]}
+                              </Text>
+                              <Text style={{ fontSize: 12, color: isToday ? '#1677ff' : '#8c8c8c' }}>
+                                {dayObj.format('DD/MM')}
+                              </Text>
+                              {isToday && <Tag color="blue" style={{ fontSize: 10, margin: '2px 0 0 0' }}>Hôm nay</Tag>}
+                            </div>
+                          ),
+                          key: `day_${i}`,
+                          align: 'center' as const,
+                          render: (_: any, slot: TimeSlot) => {
+                            const { isBooked, bookingInfo } = checkSlotStatus(slot, dayObj);
+
+                            if (isBooked && bookingInfo) {
+                              const statusMeta = statusMap[bookingInfo.status as BookingStatus] || statusMap.PENDING;
+                              return (
+                                <Tooltip
+                                  title={
+                                    <div>
+                                      <b>{bookingInfo.purpose || 'Thực hành môn học'}</b><br />
+                                      👤 Người mượn: {bookingInfo.user?.fullName || bookingInfo.userName || 'Giáo viên'}<br />
+                                      ⏰ Giờ: {slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}<br />
+                                      📌 Trạng thái: {statusMeta.text}
+                                    </div>
+                                  }
+                                >
+                                  <div
+                                    style={{
+                                      padding: '6px 8px',
+                                      borderRadius: 6,
+                                      background: bookingInfo.status === 'APPROVED' ? '#f6ffed' : '#fffbe6',
+                                      border: `1px solid ${bookingInfo.status === 'APPROVED' ? '#b7eb8f' : '#ffe58f'}`,
+                                      fontSize: 12,
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    <Tag color={statusMeta.color} style={{ margin: 0, fontSize: 10 }}>
+                                      {statusMeta.text}
+                                    </Tag>
+                                    <div style={{ fontWeight: 600, marginTop: 4, color: '#262626', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {bookingInfo.purpose || 'Đã có lịch'}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#8c8c8c' }}>
+                                      {bookingInfo.user?.fullName || bookingInfo.userName || ''}
+                                    </div>
+                                  </div>
+                                </Tooltip>
+                              );
+                            }
+
+                            return (
+                              <div
+                                onClick={() => {
+                                  form.resetFields();
+                                  handleSelectRoom(selectedRoomId || (rooms[0] ? rooms[0].id : 1));
+                                  form.setFieldsValue({
+                                    roomId: selectedRoomId || (rooms[0] ? rooms[0].id : 1),
+                                    bookingDate: dayObj,
+                                    timeSlotId: slot.id
+                                  });
+                                  handleSelectSlot(slot);
+                                  setIsModalOpen(true);
+                                }}
+                                style={{
+                                  padding: '8px 4px',
+                                  borderRadius: 6,
+                                  background: '#fafafa',
+                                  border: '1px dashed #d9d9d9',
+                                  fontSize: 12,
+                                  color: '#52c41a',
+                                  cursor: 'pointer',
+                                  textAlign: 'center',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <PlusOutlined style={{ marginRight: 4 }} />
+                                Đặt phòng
+                              </div>
+                            );
+                          }
+                        };
+                      })
+                    ]}
                   />
                 </div>
               )
