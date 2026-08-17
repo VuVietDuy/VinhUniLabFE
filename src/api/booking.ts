@@ -3,7 +3,7 @@ import axiosClient from './axiosClient';
 import type { Room } from './room';
 import type { User } from './user';
 
-export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'RETURNED';
 
 export interface Booking {
   id: number;
@@ -30,6 +30,7 @@ export const bookingApi = {
   approve: (id: number) => axiosClient.put(`/bookings/approve`, null, { params: { id } }),
   reject: (id: number) => axiosClient.put(`/bookings/reject`, null, { params: { id } }),
   cancel: (id: number) => axiosClient.put(`/bookings/cancel`, null, { params: { id } }),
+  returnRoom: (id: number) => axiosClient.put(`/bookings/return`, null, { params: { id } }),
   delete: (id: number) => axiosClient.delete(`/bookings/delete`, { params: { id } }),
   getMyBookings: (params: { page: number, size: number, status?: string }) =>
     axiosClient.get<PageResponse<Booking>>('/bookings/mine', { params }),

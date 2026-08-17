@@ -50,6 +50,7 @@ export const adminStatusConfig: Record<BookingStatus, { color: string; badgeStat
   PENDING: { color: 'gold', badgeStatus: 'warning', text: 'Chờ duyệt', icon: <SyncOutlined spin /> },
   REJECTED: { color: 'red', badgeStatus: 'error', text: 'Từ chối', icon: <CloseCircleOutlined /> },
   CANCELLED: { color: 'gray', badgeStatus: 'default', text: 'Đã hủy', icon: <CloseCircleOutlined /> },
+  RETURNED: { color: 'cyan', badgeStatus: 'default', text: 'Đã trả phòng', icon: <CheckCircleOutlined /> },
 };
 
 const AdminRoomSchedule: React.FC = () => {
@@ -311,7 +312,7 @@ const AdminRoomSchedule: React.FC = () => {
             <Space direction="vertical" size={4}>
               <Title level={4} style={{ margin: 0 }}>
                 <CalendarOutlined style={{ color: '#1890ff', marginRight: 8 }} />
-                Quản lý Lịch phòng máy Admin (Calendar)
+                Quản lý Lịch phòng máy
               </Title>
               <Text type="secondary">
                 Xem lịch trực quan dạng Lịch, duyệt/từ chối yêu cầu và quản lý thời gian sử dụng phòng máy

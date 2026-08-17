@@ -49,6 +49,7 @@ export const statusMap: Record<BookingStatus, { color: string; text: string; ico
   APPROVED: { color: 'green', text: 'Đã duyệt', icon: <CheckCircleOutlined /> },
   REJECTED: { color: 'red', text: 'Từ chối', icon: <CloseCircleOutlined /> },
   CANCELLED: { color: 'gray', text: 'Đã hủy', icon: <CloseCircleOutlined /> },
+  RETURNED: { color: 'cyan', text: 'Đã trả phòng', icon: <CheckCircleOutlined /> },
 };
 
 const BookingManagement: React.FC = () => {
@@ -387,6 +388,7 @@ const BookingManagement: React.FC = () => {
                 { value: 'ALL', label: 'Tất cả trạng thái' },
                 { value: 'PENDING', label: '🟡 Chờ duyệt' },
                 { value: 'APPROVED', label: '🟢 Đã duyệt' },
+                { value: 'RETURNED', label: '🔵 Đã trả phòng' },
                 { value: 'REJECTED', label: '🔴 Từ chối' },
               ]}
             />

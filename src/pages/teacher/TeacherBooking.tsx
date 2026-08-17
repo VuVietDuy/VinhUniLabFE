@@ -19,7 +19,8 @@ import {
   Popconfirm,
   Tooltip,
   Divider,
-  Select
+  Select,
+  Spin
 } from 'antd';
 import {
   PlusOutlined,
@@ -33,7 +34,9 @@ import {
   FileTextOutlined,
   ThunderboltOutlined,
   SendOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  RollbackOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { bookingApi, type BookingStatus } from '../../api/booking';
@@ -54,12 +57,68 @@ const TeacherBooking: React.FC = () => {
   // Selected state for Visual Booking Form
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
   const [selectedSlotId, setSelectedSlotId] = useState<number | undefined>(undefined);
+  const [selectedCheckDate, setSelectedCheckDate] = useState<dayjs.Dayjs>(dayjs());
+  const [roomBookings, setRoomBookings] = useState<any[]>([]);
+  const [roomBookingsLoading, setRoomBookingsLoading] = useState(false);
 
   // State cho phân trang và filter
   const [pagination, setPagination] = useState({ current: 1, pageSize: 6, total: 0 });
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
 
   const [form] = Form.useForm();
+
+  // Tải danh sách các đơn mượn của phòng máy đang chọn để kiểm tra khung giờ trống
+  const fetchRoomBookings = async (roomId: number) => {
+    if (!roomId) return;
+    setRoomBookingsLoading(true);
+    try {
+      const res = await bookingApi.search({
+        filter: `room.id==${roomId}`,
+        page: 0,
+        size: 500,
+        sort: ['startTime,asc']
+      });
+      setRoomBookings(res.data.content || []);
+    } catch {
+      // Bỏ qua lỗi nếu có
+    } finally {
+      setRoomBookingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedRoomId) {
+      fetchRoomBookings(selectedRoomId);
+    }
+  }, [selectedRoomId]);
+
+  // Kiểm tra 1 tiết học/khung giờ có bị bận/trùng lịch hay không
+  const checkSlotStatus = (slot: TimeSlot, checkDate: dayjs.Dayjs = selectedCheckDate) => {
+    if (!slot.startTime || !slot.endTime || !roomBookings || roomBookings.length === 0) {
+      return { isBooked: false, bookingInfo: null };
+    }
+
+    const dateStr = checkDate.format('YYYY-MM-DD');
+    const slotStartStr = `${dateStr}T${slot.startTime.substring(0, 5)}:00`;
+    const slotEndStr = `${dateStr}T${slot.endTime.substring(0, 5)}:00`;
+    const slotStart = dayjs(slotStartStr);
+    const slotEnd = dayjs(slotEndStr);
+
+    const existingBooking = roomBookings.find((b: any) => {
+      if (b.status === 'REJECTED' || b.status === 'CANCELLED' || b.status === 'RETURNED') {
+        return false;
+      }
+      const bStart = dayjs(b.startTime);
+      const bEnd = dayjs(b.endTime);
+
+      return bStart.isBefore(slotEnd) && bEnd.isAfter(slotStart);
+    });
+
+    if (existingBooking) {
+      return { isBooked: true, bookingInfo: existingBooking };
+    }
+    return { isBooked: false, bookingInfo: null };
+  };
 
   const fetchMyBookings = async (page = 1, size = 6, status = statusFilter) => {
     setLoading(true);
@@ -100,6 +159,10 @@ const TeacherBooking: React.FC = () => {
     setSelectedSlotId(slot.id);
     form.setFieldsValue({ timeSlotId: slot.id });
 
+    if (!form.getFieldValue('bookingDate')) {
+      form.setFieldsValue({ bookingDate: selectedCheckDate });
+    }
+
     if (slot.startTime && slot.endTime) {
       const startTimeStr = slot.startTime.substring(0, 5);
       const endTimeStr = slot.endTime.substring(0, 5);
@@ -115,6 +178,7 @@ const TeacherBooking: React.FC = () => {
   const handleSelectRoom = (roomId: number) => {
     setSelectedRoomId(roomId);
     form.setFieldsValue({ roomId });
+    fetchRoomBookings(roomId);
   };
 
   // Xử lý gửi Form đăng ký mượn
@@ -142,6 +206,7 @@ const TeacherBooking: React.FC = () => {
       form.resetFields();
       setIsModalOpen(false);
       fetchMyBookings(1);
+      if (selectedRoomId) fetchRoomBookings(selectedRoomId);
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Có lỗi xảy ra!');
     }
@@ -152,6 +217,7 @@ const TeacherBooking: React.FC = () => {
     APPROVED: { color: 'green', text: 'Đã duyệt', icon: <CheckCircleOutlined /> },
     REJECTED: { color: 'red', text: 'Từ chối', icon: <StopOutlined /> },
     CANCELLED: { color: 'gray', text: 'Đã hủy', icon: <StopOutlined /> },
+    RETURNED: { color: 'cyan', text: 'Đã trả phòng', icon: <CheckCircleOutlined /> },
   };
 
   const selectedRoomObj = rooms.find(r => r.id === (form.getFieldValue('roomId') || selectedRoomId));
@@ -214,21 +280,40 @@ const TeacherBooking: React.FC = () => {
       title: 'Hành động',
       key: 'action',
       render: (record: any) => (
-        record.status === 'PENDING' && (
-          <Popconfirm
-            title="Xác nhận hủy yêu cầu mượn phòng này?"
-            onConfirm={() => bookingApi.cancel(record.id).then(() => {
-              message.success('Đã hủy yêu cầu!');
-              fetchMyBookings();
-            })}
-            okText="Hủy lịch"
-            cancelText="Đóng"
-          >
-            <Button danger size="small" icon={<StopOutlined />}>
-              Hủy yêu cầu
-            </Button>
-          </Popconfirm>
-        )
+        <Space wrap>
+          {record.status === 'PENDING' && (
+            <Popconfirm
+              title="Xác nhận hủy yêu cầu mượn phòng này?"
+              onConfirm={() => bookingApi.cancel(record.id).then(() => {
+                message.success('Đã hủy yêu cầu!');
+                fetchMyBookings(pagination.current);
+              })}
+              okText="Hủy lịch"
+              cancelText="Đóng"
+            >
+              <Button danger size="small" icon={<StopOutlined />}>
+                Hủy yêu cầu
+              </Button>
+            </Popconfirm>
+          )}
+          {record.status === 'APPROVED' && (
+            <Popconfirm
+              title="Xác nhận trả phòng máy này?"
+              onConfirm={() => bookingApi.returnRoom(record.id).then(() => {
+                message.success('Đã trả phòng thành công!');
+                fetchMyBookings(pagination.current);
+              }).catch((err: any) => {
+                message.error(err.response?.data?.message || 'Trả phòng thất bại!');
+              })}
+              okText="Trả phòng"
+              cancelText="Đóng"
+            >
+              <Button type="primary" ghost size="small" icon={<RollbackOutlined />}>
+                Trả phòng
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
       )
     }
   ];
@@ -312,6 +397,7 @@ const TeacherBooking: React.FC = () => {
                         options={[
                           { value: 'PENDING', label: '🟡 Chờ duyệt' },
                           { value: 'APPROVED', label: '🟢 Đã duyệt' },
+                          { value: 'RETURNED', label: '🔵 Đã trả phòng' },
                           { value: 'REJECTED', label: '🔴 Từ chối' },
                         ]}
                       />
@@ -387,17 +473,70 @@ const TeacherBooking: React.FC = () => {
 
                       {/* Step 2: Time Slots Matrix */}
                       <div>
-                        <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 10 }}>
-                          2️⃣ Chọn tiết học (Khung giờ mẫu):
-                        </Text>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                          <Text strong style={{ fontSize: 15 }}>
+                            2️⃣ Chọn tiết học & Kiểm tra khung giờ trống:
+                          </Text>
+                          <Space align="center">
+                            <Text type="secondary" style={{ fontSize: 13 }}>Ngày mượn:</Text>
+                            <DatePicker
+                              value={selectedCheckDate}
+                              onChange={(date) => {
+                                if (date) {
+                                  setSelectedCheckDate(date);
+                                  form.setFieldsValue({ bookingDate: date });
+                                }
+                              }}
+                              format="YYYY-MM-DD"
+                              minDate={dayjs()}
+                              allowClear={false}
+                              style={{ width: 140 }}
+                            />
+                            {roomBookingsLoading && <Spin size="small" />}
+                          </Space>
+                        </div>
 
-                        <div style={{ marginBottom: 12 }}>
+                        {/* Status guide banner */}
+                        <div style={{ marginBottom: 14, padding: '8px 12px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0', fontSize: 12, display: 'flex', gap: 16 }}>
+                          <span><Badge status="success" /> <Text type="success" strong>Màu xanh:</Text> Khung giờ còn trống</span>
+                          <span><Badge status="error" /> <Text type="danger" strong>Màu đỏ/xám:</Text> Đã có lịch đặt</span>
+                        </div>
+
+                        <div style={{ marginBottom: 16 }}>
                           <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
                             ☀️ Ca Sáng:
                           </Text>
                           <Space wrap size={[8, 8]}>
                             {morningSlots.map(slot => {
                               const isSelected = (form.getFieldValue('timeSlotId') || selectedSlotId) === slot.id;
+                              const currentCheckDate = form.getFieldValue('bookingDate') || selectedCheckDate;
+                              const { isBooked, bookingInfo } = checkSlotStatus(slot, currentCheckDate);
+
+                              if (isBooked) {
+                                return (
+                                  <Tooltip
+                                    key={slot.id}
+                                    title={`Đã có lịch: ${bookingInfo?.purpose || 'Thực hành môn học'} (${bookingInfo?.user?.fullName || bookingInfo?.userName || 'Giáo viên'}) - Trạng thái: ${bookingInfo?.status}`}
+                                  >
+                                    <Tag
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        fontSize: 13,
+                                        backgroundColor: '#fff1f0',
+                                        borderColor: '#ffa39e',
+                                        color: '#cf1322',
+                                        cursor: 'not-allowed',
+                                        opacity: 0.85
+                                      }}
+                                    >
+                                      <CloseCircleOutlined style={{ marginRight: 4 }} />
+                                      {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}) [Bận]
+                                    </Tag>
+                                  </Tooltip>
+                                );
+                              }
+
                               return (
                                 <Tag.CheckableTag
                                   key={slot.id}
@@ -407,11 +546,13 @@ const TeacherBooking: React.FC = () => {
                                     padding: '6px 12px',
                                     borderRadius: 6,
                                     fontSize: 13,
-                                    border: isSelected ? '1px solid #1677ff' : '1px solid #d9d9d9'
+                                    border: isSelected ? '1px solid #1677ff' : '1px solid #b7eb8f',
+                                    backgroundColor: isSelected ? '#1677ff' : '#f6ffed',
+                                    color: isSelected ? '#ffffff' : '#274f17'
                                   }}
                                 >
-                                  <ClockCircleOutlined style={{ marginRight: 4 }} />
-                                  {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)})
+                                  <CheckCircleOutlined style={{ marginRight: 4, color: isSelected ? '#fff' : '#52c41a' }} />
+                                  {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}) [Trống]
                                 </Tag.CheckableTag>
                               );
                             })}
@@ -425,6 +566,34 @@ const TeacherBooking: React.FC = () => {
                           <Space wrap size={[8, 8]}>
                             {afternoonSlots.map(slot => {
                               const isSelected = (form.getFieldValue('timeSlotId') || selectedSlotId) === slot.id;
+                              const currentCheckDate = form.getFieldValue('bookingDate') || selectedCheckDate;
+                              const { isBooked, bookingInfo } = checkSlotStatus(slot, currentCheckDate);
+
+                              if (isBooked) {
+                                return (
+                                  <Tooltip
+                                    key={slot.id}
+                                    title={`Đã có lịch: ${bookingInfo?.purpose || 'Thực hành môn học'} (${bookingInfo?.user?.fullName || bookingInfo?.userName || 'Giáo viên'}) - Trạng thái: ${bookingInfo?.status}`}
+                                  >
+                                    <Tag
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: 6,
+                                        fontSize: 13,
+                                        backgroundColor: '#fff1f0',
+                                        borderColor: '#ffa39e',
+                                        color: '#cf1322',
+                                        cursor: 'not-allowed',
+                                        opacity: 0.85
+                                      }}
+                                    >
+                                      <CloseCircleOutlined style={{ marginRight: 4 }} />
+                                      {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}) [Bận]
+                                    </Tag>
+                                  </Tooltip>
+                                );
+                              }
+
                               return (
                                 <Tag.CheckableTag
                                   key={slot.id}
@@ -434,11 +603,13 @@ const TeacherBooking: React.FC = () => {
                                     padding: '6px 12px',
                                     borderRadius: 6,
                                     fontSize: 13,
-                                    border: isSelected ? '1px solid #1677ff' : '1px solid #d9d9d9'
+                                    border: isSelected ? '1px solid #1677ff' : '1px solid #b7eb8f',
+                                    backgroundColor: isSelected ? '#1677ff' : '#f6ffed',
+                                    color: isSelected ? '#ffffff' : '#274f17'
                                   }}
                                 >
-                                  <ClockCircleOutlined style={{ marginRight: 4 }} />
-                                  {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)})
+                                  <CheckCircleOutlined style={{ marginRight: 4, color: isSelected ? '#fff' : '#52c41a' }} />
+                                  {slot.slotName} ({slot.startTime?.substring(0, 5)} - {slot.endTime?.substring(0, 5)}) [Trống]
                                 </Tag.CheckableTag>
                               );
                             })}
@@ -466,19 +637,30 @@ const TeacherBooking: React.FC = () => {
                           </Form.Item>
 
                           <Form.Item name="bookingDate" label="Ngày mượn" rules={[{ required: true, message: 'Chọn ngày!' }]}>
-                            <DatePicker style={{ width: '100%' }} minDate={dayjs()} format="YYYY-MM-DD" />
+                            <DatePicker
+                              style={{ width: '100%' }}
+                              minDate={dayjs()}
+                              format="YYYY-MM-DD"
+                              onChange={(val) => {
+                                if (val) setSelectedCheckDate(val);
+                              }}
+                            />
                           </Form.Item>
 
-                          <Form.Item name="timeSlotId" label="Tiết học (Optional)">
+                          <Form.Item name="timeSlotId" label="Tiết học (Khung giờ mẫu)">
                             <Select placeholder="Chọn tiết học" allowClear onChange={(id) => {
                               const s = timeSlots.find(x => x.id === id);
                               if (s) handleSelectSlot(s);
                             }}>
-                              {timeSlots.map(ts => (
-                                <Select.Option key={ts.id} value={ts.id}>
-                                  {ts.slotName} ({ts.startTime?.substring(0, 5)} - {ts.endTime?.substring(0, 5)})
-                                </Select.Option>
-                              ))}
+                              {timeSlots.map(ts => {
+                                const targetDate = form.getFieldValue('bookingDate') || selectedCheckDate;
+                                const { isBooked } = checkSlotStatus(ts, targetDate);
+                                return (
+                                  <Select.Option key={ts.id} value={ts.id} disabled={isBooked}>
+                                    {ts.slotName} ({ts.startTime?.substring(0, 5)} - {ts.endTime?.substring(0, 5)}) {isBooked ? '🔴 [Đã có lịch]' : '🟢 [Còn trống]'}
+                                  </Select.Option>
+                                );
+                              })}
                             </Select>
                           </Form.Item>
 
@@ -534,21 +716,32 @@ const TeacherBooking: React.FC = () => {
             </Col>
             <Col span={12}>
               <Form.Item name="bookingDate" label="Ngày mượn" rules={[{ required: true, message: 'Vui lòng chọn ngày!' }]}>
-                <DatePicker style={{ width: '100%' }} minDate={dayjs()} format="YYYY-MM-DD" />
+                <DatePicker
+                  style={{ width: '100%' }}
+                  minDate={dayjs()}
+                  format="YYYY-MM-DD"
+                  onChange={(val) => {
+                    if (val) setSelectedCheckDate(val);
+                  }}
+                />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="timeSlotId" label="Chọn tiết học (Danh mục có sẵn)">
+          <Form.Item name="timeSlotId" label="Chọn tiết học (Khung giờ mẫu)">
             <Select placeholder="Chọn tiết học (Tiết 1 đến Tiết 10...)" allowClear onChange={(id) => {
               const s = timeSlots.find(x => x.id === id);
               if (s) handleSelectSlot(s);
             }}>
-              {timeSlots.map(ts => (
-                <Select.Option key={ts.id} value={ts.id}>
-                  {ts.slotName} ({ts.startTime ? ts.startTime.substring(0, 5) : ''} - {ts.endTime ? ts.endTime.substring(0, 5) : ''})
-                </Select.Option>
-              ))}
+              {timeSlots.map(ts => {
+                const targetDate = form.getFieldValue('bookingDate') || selectedCheckDate;
+                const { isBooked } = checkSlotStatus(ts, targetDate);
+                return (
+                  <Select.Option key={ts.id} value={ts.id} disabled={isBooked}>
+                    {ts.slotName} ({ts.startTime ? ts.startTime.substring(0, 5) : ''} - {ts.endTime ? ts.endTime.substring(0, 5) : ''}) {isBooked ? '🔴 [Đã có lịch]' : '🟢 [Còn trống]'}
+                  </Select.Option>
+                );
+              })}
             </Select>
           </Form.Item>
 
