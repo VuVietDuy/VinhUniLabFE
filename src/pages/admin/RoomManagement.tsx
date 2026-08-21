@@ -32,11 +32,15 @@ import {
   EnvironmentOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
-  UsergroupAddOutlined
+  UsergroupAddOutlined,
+  FileExcelOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { roomApi, type Room } from '../../api/room';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
+import { RoomImportModal } from '../../components/admin/RoomImportModal';
+import { exportRoomsToExcel } from '../../utils/excelParser';
 
 const { Text, Title } = Typography;
 
@@ -58,7 +62,9 @@ const RoomManagement: React.FC = () => {
   const [size, setSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [form] = Form.useForm();
 
@@ -79,6 +85,25 @@ const RoomManagement: React.FC = () => {
   useEffect(() => {
     fetchRooms();
   }, [size, page, filter]);
+
+  // Hàm xuất danh sách phòng máy ra Excel (call GET /admin/rooms/findAll)
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const response = await roomApi.getAll();
+      const allRooms = response.data;
+      if (!allRooms || allRooms.length === 0) {
+        message.warning('Không tìm thấy dữ liệu phòng máy nào để xuất Excel');
+        return;
+      }
+      exportRoomsToExcel(allRooms);
+      message.success(`Đã xuất ${allRooms.length} phòng máy ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách phòng máy thất bại'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const showAddModal = () => {
     setEditingRoom(null);
@@ -295,6 +320,21 @@ const RoomManagement: React.FC = () => {
               ]}
             />
             <Button icon={<ReloadOutlined />} onClick={fetchRooms}>Làm mới</Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              loading={exporting}
+              style={{ color: '#1677ff', borderColor: '#1677ff', fontWeight: 600 }}
+            >
+              Export Excel
+            </Button>
+            <Button
+              icon={<FileExcelOutlined />}
+              onClick={() => setIsImportModalOpen(true)}
+              style={{ color: '#27ae60', borderColor: '#27ae60', fontWeight: 600 }}
+            >
+              Import Excel
+            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={showAddModal} style={{ fontWeight: 600 }}>
               Thêm phòng máy
             </Button>
@@ -467,6 +507,13 @@ const RoomManagement: React.FC = () => {
             </Row>
           </Form>
         </Modal>
+
+        {/* Modal Import dữ liệu phòng máy từ file Excel */}
+        <RoomImportModal
+          open={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={fetchRooms}
+        />
       </Card>
     </div>
   );

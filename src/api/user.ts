@@ -17,6 +17,7 @@ export const userApi = {
   getAll: () => axiosClient.get<User[]>('/admin/users'),
   search: (params: any) => axiosClient.get<{ content: User[]; totalElements: number }>('/admin/users/search', { params }),
   create: (data: Partial<User>) => axiosClient.post<User>('/admin/users', data),
+  saveAll: (data: Partial<User>[]) => axiosClient.post<User[]>('/admin/users/saveAll', data),
   update: (id: number, data: Partial<User>) => axiosClient.put<User>(`/admin/users/${id}`, data),
   delete: (id: number) => axiosClient.delete(`/admin/users/${id}`),
 };

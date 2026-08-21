@@ -1,14 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, Popconfirm, message, Card, Tag } from 'antd';
-import { UserAddOutlined, EditOutlined, DeleteOutlined, UserOutlined, MailOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  UserAddOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UserOutlined,
+  MailOutlined,
+  SearchOutlined,
+  FileExcelOutlined,
+  DownloadOutlined,
+  ReloadOutlined
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, type User, type UserRole } from '../../api/user';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
+import { UserImportModal } from '../../components/admin/UserImportModal';
+import { exportUsersToExcel } from '../../utils/excelParser';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form] = Form.useForm();
   const [page, setPage] = useState(0);
@@ -36,6 +50,25 @@ const UserManagement: React.FC = () => {
   };
 
   useEffect(() => { fetchUsers(); }, [size, page, filter]);
+
+  // Hàm xuất danh sách người dùng ra file Excel
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const response = await userApi.getAll();
+      const allUsers = response.data;
+      if (!allUsers || allUsers.length === 0) {
+        message.warning('Không tìm thấy dữ liệu người dùng để xuất Excel');
+        return;
+      }
+      exportUsersToExcel(allUsers);
+      message.success(`Đã xuất ${allUsers.length} tài khoản người dùng ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách người dùng thất bại'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleOk = async () => {
     try {
@@ -130,13 +163,31 @@ const UserManagement: React.FC = () => {
       style={{ margin: '16px 16px' }}
       title={<span><UserOutlined /> Quản lý tài khoản hệ thống</span>}
       extra={
-        <Button type="primary" icon={<UserAddOutlined />} onClick={() => {
-          setEditingUser(null);
-          form.resetFields();
-          setIsModalOpen(true);
-        }}>
-          Thêm người dùng
-        </Button>
+        <Space wrap>
+          <Button icon={<ReloadOutlined />} onClick={fetchUsers}>Làm mới</Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handleExportExcel}
+            loading={exporting}
+            style={{ color: '#1677ff', borderColor: '#1677ff', fontWeight: 600 }}
+          >
+            Export Excel
+          </Button>
+          <Button
+            icon={<FileExcelOutlined />}
+            onClick={() => setIsImportModalOpen(true)}
+            style={{ color: '#27ae60', borderColor: '#27ae60', fontWeight: 600 }}
+          >
+            Import Excel
+          </Button>
+          <Button type="primary" icon={<UserAddOutlined />} onClick={() => {
+            setEditingUser(null);
+            form.resetFields();
+            setIsModalOpen(true);
+          }}>
+            Thêm người dùng
+          </Button>
+        </Space>
       }
     >
       <Space style={{ marginBottom: 16 }}>
@@ -213,6 +264,13 @@ const UserManagement: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Modal Import danh sách người dùng từ file Excel */}
+      <UserImportModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={fetchUsers}
+      />
     </Card>
   );
 };

@@ -32,16 +32,19 @@ import {
   CloseCircleOutlined,
   SyncOutlined,
   EnvironmentOutlined,
-  AppstoreOutlined,
   UnorderedListOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  FileExcelOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { computerApi, type Computer, type ComputerStatus } from '../../api/computer';
 import { roomApi, type Room } from '../../api/room';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
+import { ComputerImportModal } from '../../components/admin/ComputerImportModal';
+import { exportComputersToExcel } from '../../utils/excelParser';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export const statusMap: Record<ComputerStatus, { color: string; label: string; icon: React.ReactNode }> = {
   AVAILABLE: { color: 'success', label: 'Sẵn sàng', icon: <CheckCircleOutlined /> },
@@ -54,7 +57,9 @@ const ComputerManagement: React.FC = () => {
   const [computers, setComputers] = useState<Computer[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingComputer, setEditingComputer] = useState<Computer | null>(null);
 
   // Pagination & Filtering & Grouping
@@ -88,6 +93,25 @@ const ComputerManagement: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Hàm xuất danh sách máy tính ra file Excel
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const response = await computerApi.getAll();
+      const allComps = response.data;
+      if (!allComps || allComps.length === 0) {
+        message.warning('Không tìm thấy dữ liệu máy tính nào để xuất Excel');
+        return;
+      }
+      exportComputersToExcel(allComps, rooms);
+      message.success(`Đã xuất ${allComps.length} máy tính ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách máy tính thất bại'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleOk = async () => {
     try {
@@ -316,6 +340,21 @@ const ComputerManagement: React.FC = () => {
             />
             <Button icon={<ReloadOutlined />} onClick={fetchData}>Làm mới</Button>
             <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              loading={exporting}
+              style={{ color: '#1677ff', borderColor: '#1677ff', fontWeight: 600 }}
+            >
+              Export Excel
+            </Button>
+            <Button
+              icon={<FileExcelOutlined />}
+              onClick={() => setIsImportModalOpen(true)}
+              style={{ color: '#27ae60', borderColor: '#27ae60', fontWeight: 600 }}
+            >
+              Import Excel
+            </Button>
+            <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => openAddModalForRoom()}
@@ -527,6 +566,14 @@ const ComputerManagement: React.FC = () => {
             </Form.Item>
           </Form>
         </Modal>
+
+        {/* Modal Import danh sách máy tính từ file Excel */}
+        <ComputerImportModal
+          open={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={fetchData}
+          rooms={rooms}
+        />
       </Card>
     </div>
   );
