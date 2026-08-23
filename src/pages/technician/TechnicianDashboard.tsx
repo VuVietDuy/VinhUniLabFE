@@ -27,8 +27,8 @@ const priorityMap: Record<Priority, { color: string; label: string }> = {
 };
 
 const getComputerCode = (record: Incident) => {
-  const computer = record as Incident & { computer?: { computerCode?: string } };
-  return computer.computer?.computerCode || record.computerCode || '-';
+  const computer = record as Incident & { computer?: { computerCode?: string }; computerCode?: string };
+  return computer.computer?.computerCode || computer.computerCode || '-';
 };
 
 const getRoomName = (record: Incident) => {

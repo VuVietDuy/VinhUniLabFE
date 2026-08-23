@@ -30,14 +30,17 @@ import {
   DesktopOutlined,
   UserOutlined,
   ExclamationCircleOutlined,
-  SyncOutlined
+  SyncOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { incidentApi, type Incident, type IncidentStatus, type Priority } from '../../api/incident';
 import { roomApi, type Room } from '../../api/room';
 import { userApi, type User } from '../../api/user';
+import { exportIncidentsToExcel } from '../../utils/excelParser';
+import { getApiErrorMessage } from '../../utils/apiError';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const priorityMap: Record<Priority, { color: string; label: string; icon: React.ReactNode }> = {
   LOW: { color: 'blue', label: 'Thấp (Nhẹ)', icon: <InfoIcon /> },
@@ -69,6 +72,7 @@ const IncidentManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
+  const [exporting, setExporting] = useState(false);
 
   // Detail Modal
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
@@ -142,6 +146,56 @@ const IncidentManagement: React.FC = () => {
   const handleViewIncident = (incident: Incident) => {
     setSelectedIncident(incident);
     setIsDetailModalOpen(true);
+  };
+
+  // Hàm xuất danh sách báo cáo sự cố ra file Excel
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await incidentApi.search({
+        filter: 'id!=0',
+        page: 0,
+        size: 2000,
+        sort: ['id,desc'],
+      });
+      let exportList = res.data.content || [];
+      if (exportList.length === 0) {
+        message.warning('Không có dữ liệu sự cố nào để xuất Excel');
+        return;
+      }
+
+      // Áp dụng bộ lọc hiện tại nếu có
+      if (statusFilter !== 'ALL') {
+        exportList = exportList.filter(item => item.status === statusFilter);
+      }
+      if (priorityFilter !== 'ALL') {
+        exportList = exportList.filter(item => item.priority === priorityFilter);
+      }
+      if (selectedRoomId) {
+        exportList = exportList.filter(item => item.computer?.roomId === selectedRoomId);
+      }
+      if (searchText.trim()) {
+        const kw = searchText.toLowerCase().trim();
+        exportList = exportList.filter(item => {
+          const descMatch = item.description?.toLowerCase().includes(kw);
+          const codeMatch = item.computer?.computerCode?.toLowerCase().includes(kw);
+          const reporterMatch = (item.reportedBy?.fullName || item.reportedBy?.username || '').toLowerCase().includes(kw);
+          return descMatch || codeMatch || reporterMatch;
+        });
+      }
+
+      if (exportList.length === 0) {
+        message.warning('Không tìm thấy sự cố nào phù hợp với bộ lọc hiện tại để xuất Excel');
+        return;
+      }
+
+      exportIncidentsToExcel(exportList, rooms);
+      message.success(`Đã xuất ${exportList.length} báo cáo sự cố ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách sự cố thất bại'));
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Client-side Filtered Data
@@ -358,9 +412,19 @@ const IncidentManagement: React.FC = () => {
           </span>
         }
         extra={
-          <Button icon={<ReloadOutlined />} onClick={fetchIncidents}>
-            Làm mới
-          </Button>
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={fetchIncidents}>
+              Làm mới
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              loading={exporting}
+              style={{ color: '#1677ff', borderColor: '#1677ff', fontWeight: 600 }}
+            >
+              Export Excel
+            </Button>
+          </Space>
         }
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
       >

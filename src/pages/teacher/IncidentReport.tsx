@@ -25,17 +25,18 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   SyncOutlined,
-  ExclamationCircleOutlined,
-  ThunderboltOutlined,
-  EnvironmentOutlined
+  EnvironmentOutlined,
+  DownloadOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { incidentApi, type Incident, type Priority } from '../../api/incident';
 import { roomApi, type Room } from '../../api/room';
 import { computerApi, type Computer } from '../../api/computer';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
+import { exportIncidentsToExcel } from '../../utils/excelParser';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const PRESET_INCIDENTS = [
   '🖥️ Màn hình không lên / Bị xanh màn hình',
@@ -57,6 +58,7 @@ const IncidentReport: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Load dữ liệu ban đầu
   useEffect(() => {
@@ -73,6 +75,25 @@ const IncidentReport: React.FC = () => {
       message.error("Không thể tải lịch sử báo cáo sự cố");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Xuất Excel lịch sử báo cáo sự cố của giảng viên
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await incidentApi.getMyIncidents(0, 1000);
+      const list = res.data.content || [];
+      if (list.length === 0) {
+        message.warning('Không có dữ liệu sự cố nào để xuất Excel');
+        return;
+      }
+      exportIncidentsToExcel(list, rooms, 'Lich_Su_Bao_Cao_Su_Co_Cua_Toi.xlsx');
+      message.success(`Đã xuất ${list.length} báo cáo sự cố ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách báo cáo sự cố thất bại'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -255,15 +276,28 @@ const IncidentReport: React.FC = () => {
           </span>
         }
         extra={
-          <Button
-            type="primary"
-            danger
-            icon={<PlusOutlined />}
-            onClick={handleOpenModal}
-            style={{ fontWeight: 600 }}
-          >
-            Báo cáo sự cố mới
-          </Button>
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={fetchHistory}>
+              Làm mới
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              loading={exporting}
+              style={{ color: '#1890ff', borderColor: '#1890ff', fontWeight: 600 }}
+            >
+              Export Excel
+            </Button>
+            <Button
+              type="primary"
+              danger
+              icon={<PlusOutlined />}
+              onClick={handleOpenModal}
+              style={{ fontWeight: 600 }}
+            >
+              Báo cáo sự cố mới
+            </Button>
+          </Space>
         }
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
       >

@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { Room } from '../api/room';
 import type { Computer, ComputerStatus } from '../api/computer';
 import type { User, UserRole } from '../api/user';
+import type { Incident, IncidentStatus, Priority } from '../api/incident';
 
 /**
  * Chuẩn hóa chuỗi (bỏ dấu tiếng Việt bao gồm đ/Đ, chuyển về chữ thường, xóa khoảng trắng thừa)
@@ -636,3 +637,97 @@ export const exportUsersToExcel = (users: User[], filename = 'Danh_Sach_Nguoi_Du
 
   XLSX.writeFile(workbook, filename);
 };
+
+// ==========================================
+// BÁO CÁO SỰ CỐ (INCIDENT) EXPORTER
+// ==========================================
+
+export const exportIncidentsToExcel = (
+  incidents: Incident[],
+  rooms: Room[] = [],
+  filename = 'Danh_Sach_Bao_Cao_Su_Co.xlsx'
+) => {
+  const statusLabelMap: Record<IncidentStatus, string> = {
+    OPEN: 'Mới tiếp nhận',
+    IN_PROGRESS: 'Đang sửa chữa',
+    RESOLVED: 'Đã khắc phục',
+    CLOSED: 'Đã đóng',
+  };
+
+  const priorityLabelMap: Record<Priority, string> = {
+    LOW: 'Thấp (Nhẹ)',
+    NORMAL: 'Trung bình',
+    HIGH: 'Khẩn cấp',
+  };
+
+  const roomMap = new Map<number, string>();
+  rooms.forEach(r => roomMap.set(r.id, r.roomName));
+
+  const exportData = incidents.map((inc, index) => {
+    const computer = inc as Incident & { computer?: { computerCode?: string; roomId?: number; roomName?: string; room?: { roomName?: string } } };
+    const roomName =
+      (inc.computer?.roomId ? roomMap.get(inc.computer.roomId) : undefined) ||
+      computer.computer?.room?.roomName ||
+      computer.computer?.roomName ||
+      inc.roomName ||
+      'Khu Lab';
+
+    const computerCode =
+      inc.computer?.computerCode ||
+      computer.computer?.computerCode ||
+      (inc.computerId ? `Máy #${inc.computerId}` : '');
+
+    const reporterName =
+      inc.reportedBy?.fullName ||
+      inc.reportedBy?.username ||
+      'Giảng viên';
+
+    const technicianName =
+      inc.assignedTo?.fullName ||
+      (inc as any).technician?.fullName ||
+      inc.assignedTo?.username ||
+      'Chưa phân công';
+
+    const createdAtStr = inc.createdAt
+      ? new Date(inc.createdAt).toLocaleString('vi-VN')
+      : '';
+    const resolvedAtStr = inc.resolvedAt
+      ? new Date(inc.resolvedAt).toLocaleString('vi-VN')
+      : 'Chưa xử lý';
+
+    return {
+      STT: index + 1,
+      'Mã sự cố': `INC-${inc.id}`,
+      'Mức độ': priorityLabelMap[inc.priority] || inc.priority || '',
+      'Trạng thái': statusLabelMap[inc.status] || inc.status || '',
+      'Phòng máy': roomName,
+      'Mã máy tính': computerCode,
+      'Mô tả sự cố': inc.description || '',
+      'Người báo cáo': reporterName,
+      'KTV phụ trách': technicianName,
+      'Thời gian báo cáo': createdAtStr,
+      'Thời gian khắc phục': resolvedAtStr,
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  worksheet['!cols'] = [
+    { wch: 6 },  // STT
+    { wch: 14 }, // Mã sự cố
+    { wch: 16 }, // Mức độ
+    { wch: 18 }, // Trạng thái
+    { wch: 25 }, // Phòng máy
+    { wch: 16 }, // Mã máy tính
+    { wch: 45 }, // Mô tả sự cố
+    { wch: 24 }, // Người báo cáo
+    { wch: 24 }, // KTV phụ trách
+    { wch: 22 }, // Thời gian báo cáo
+    { wch: 22 }, // Thời gian khắc phục
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'BaoCaoSuCo');
+
+  XLSX.writeFile(workbook, filename);
+};
+

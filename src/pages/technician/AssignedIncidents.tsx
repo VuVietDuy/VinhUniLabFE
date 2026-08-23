@@ -10,7 +10,8 @@ import {
   ClockCircleOutlined,
   UserOutlined,
   SyncOutlined,
-  EnvironmentOutlined
+  EnvironmentOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -32,6 +33,8 @@ import {
   Typography
 } from 'antd';
 import { incidentApi, type Incident, type IncidentStatus, type Priority } from '../../api/incident';
+import { exportIncidentsToExcel } from '../../utils/excelParser';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 const { Text } = Typography;
 
@@ -64,6 +67,7 @@ const AssignedIncidents: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [searchText, setSearchText] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [exporting, setExporting] = useState(false);
 
   // Detail Modal
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
@@ -103,6 +107,45 @@ const AssignedIncidents: React.FC = () => {
   const handleViewDetail = (record: Incident) => {
     setSelectedIncident(record);
     setIsDetailModalOpen(true);
+  };
+
+  // Xuất Excel sự cố được phân công
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await incidentApi.getAssignedToMe(0, 1000);
+      let list = res.data.content || [];
+      if (list.length === 0) {
+        message.warning('Không có dữ liệu sự cố nào để xuất Excel');
+        return;
+      }
+      if (statusFilter !== 'ALL') {
+        list = list.filter(item => item.status === statusFilter);
+      }
+      if (priorityFilter !== 'ALL') {
+        list = list.filter(item => item.priority === priorityFilter);
+      }
+      if (searchText.trim()) {
+        const kw = searchText.toLowerCase().trim();
+        list = list.filter(item => {
+          const descMatch = item.description?.toLowerCase().includes(kw);
+          const comp = item as Incident & { computer?: { computerCode?: string; roomName?: string; room?: { roomName?: string } } };
+          const codeMatch = comp.computer?.computerCode?.toLowerCase().includes(kw);
+          const roomMatch = (comp.computer?.roomName || comp.computer?.room?.roomName || item.roomName || '').toLowerCase().includes(kw);
+          return descMatch || codeMatch || roomMatch;
+        });
+      }
+      if (list.length === 0) {
+        message.warning('Không tìm thấy sự cố nào phù hợp với bộ lọc hiện tại để xuất Excel');
+        return;
+      }
+      exportIncidentsToExcel(list, [], 'Danh_Sach_Su_Co_Phan_Cong.xlsx');
+      message.success(`Đã xuất ${list.length} sự cố ra file Excel thành công!`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Xuất danh sách sự cố thất bại'));
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Client side filtering for keyword & status/priority
@@ -306,9 +349,19 @@ const AssignedIncidents: React.FC = () => {
           </span>
         }
         extra={
-          <Button icon={<ReloadOutlined />} onClick={() => fetchAssignedIncidents(pagination.current)}>
-            Làm mới
-          </Button>
+          <Space wrap>
+            <Button icon={<ReloadOutlined />} onClick={() => fetchAssignedIncidents(pagination.current)}>
+              Làm mới
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              loading={exporting}
+              style={{ color: '#fa8c16', borderColor: '#fa8c16', fontWeight: 600 }}
+            >
+              Export Excel
+            </Button>
+          </Space>
         }
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
       >
