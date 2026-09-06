@@ -12,7 +12,6 @@ import {
   Col,
   Statistic,
   Typography,
-  Tooltip,
   Form,
   DatePicker,
   TimePicker,
@@ -22,7 +21,6 @@ import {
   Empty,
   Popconfirm,
   Segmented,
-  Spin,
   Table
 } from 'antd';
 import {
@@ -39,13 +37,15 @@ import {
   CheckOutlined,
   CloseOutlined,
   LeftOutlined,
-  RightOutlined
+  RightOutlined,
+  FileExcelOutlined
 } from '@ant-design/icons';
 import type { CalendarProps } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import { roomApi, type Room } from '../../api/room';
 import { bookingApi, type Booking, type BookingStatus } from '../../api/booking';
 import { timeSlotApi, type TimeSlot } from '../../api/timeSlot';
+import { BookingImportModal } from '../../components/admin/BookingImportModal';
 
 const { Title, Text } = Typography;
 const { RangePicker } = TimePicker;
@@ -83,6 +83,7 @@ const AdminRoomSchedule: React.FC = () => {
 
   // Modal tạo booking mới
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [form] = Form.useForm();
 
   // Tải phòng máy & tiết học khi mount
@@ -389,6 +390,13 @@ const AdminRoomSchedule: React.FC = () => {
                   { value: 'REJECTED', label: 'Từ chối' },
                 ]}
               />
+              <Button
+                icon={<FileExcelOutlined style={{ color: '#52c41a' }} />}
+                onClick={() => setIsImportModalOpen(true)}
+                style={{ borderColor: '#52c41a', color: '#389e0d', fontWeight: 500 }}
+              >
+                Import Excel TKB
+              </Button>
               <Button icon={<ReloadOutlined />} onClick={fetchRoomBookings} loading={loading}>
                 Làm mới
               </Button>
@@ -781,6 +789,15 @@ const AdminRoomSchedule: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Modal Import Lịch Thực Hành / Đặt Phòng từ Excel */}
+      <BookingImportModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          fetchRoomBookings();
+        }}
+      />
     </div>
   );
 };

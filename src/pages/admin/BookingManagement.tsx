@@ -33,13 +33,17 @@ import {
   SyncOutlined,
   DeleteOutlined,
   CheckOutlined,
-  CloseOutlined
+  CloseOutlined,
+  FileExcelOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { bookingApi, type Booking, type BookingStatus } from '../../api/booking';
 import { roomApi, type Room } from '../../api/room';
 import { timeSlotApi, type TimeSlot } from '../../api/timeSlot';
+import { BookingImportModal } from '../../components/admin/BookingImportModal';
+import { exportBookingsToExcel } from '../../utils/excelParser';
 
 const { Text } = Typography;
 const { RangePicker } = TimePicker;
@@ -58,7 +62,9 @@ const BookingManagement: React.FC = () => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [form] = Form.useForm();
 
   // Filtering & Pagination
@@ -154,6 +160,24 @@ const BookingManagement: React.FC = () => {
       fetchData();
     } catch {
       message.error('Xóa thất bại');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await bookingApi.getAll();
+      const allBookings = res.data || [];
+      if (allBookings.length === 0) {
+        message.warning('Không tìm thấy dữ liệu đặt phòng để xuất Excel');
+        return;
+      }
+      exportBookingsToExcel(allBookings, rooms);
+      message.success(`Đã xuất ${allBookings.length} lịch đặt phòng ra file Excel thành công!`);
+    } catch {
+      message.error('Lỗi khi xuất danh sách đặt phòng');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -349,9 +373,26 @@ const BookingManagement: React.FC = () => {
           </span>
         }
         extra={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchData}>Làm mới</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)} style={{ fontWeight: 600 }}>
+          <Space wrap>
+            <Button
+              icon={<FileExcelOutlined style={{ color: '#52c41a' }} />}
+              onClick={() => setIsImportModalOpen(true)}
+              style={{ borderColor: '#52c41a', color: '#389e0d', fontWeight: 500 }}
+            >
+              Import Excel TKB
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExportExcel} loading={exporting}>
+              Xuất Excel
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={fetchData}>
+              Làm mới
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsModalOpen(true)}
+              style={{ fontWeight: 600 }}
+            >
               Tạo mượn phòng
             </Button>
           </Space>
@@ -455,6 +496,13 @@ const BookingManagement: React.FC = () => {
             </Form.Item>
           </Form>
         </Modal>
+
+        {/* Modal Import Lịch Thực Hành từ Excel */}
+        <BookingImportModal
+          open={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={fetchData}
+        />
       </Card>
     </div>
   );

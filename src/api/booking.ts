@@ -27,6 +27,7 @@ export const bookingApi = {
   getRecent: () => axiosClient.get<PageResponse<Booking>>('/bookings/recent'),
   getMine: () => axiosClient.get<Booking[]>('/bookings/mine'),
   create: (data: Partial<Booking>) => axiosClient.post<Booking>('/bookings/create', data),
+  saveAll: (data: Partial<Booking>[]) => axiosClient.post<Booking[]>('/bookings/saveAll', data),
   approve: (id: number) => axiosClient.put(`/bookings/approve`, null, { params: { id } }),
   reject: (id: number) => axiosClient.put(`/bookings/reject`, null, { params: { id } }),
   cancel: (id: number) => axiosClient.put(`/bookings/cancel`, null, { params: { id } }),
