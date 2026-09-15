@@ -18,7 +18,9 @@ import {
   Segmented,
   Tooltip,
   Typography,
-  Progress
+  Progress,
+  Select,
+  Avatar
 } from 'antd';
 import {
   PlusOutlined,
@@ -34,12 +36,17 @@ import {
   UnorderedListOutlined,
   UsergroupAddOutlined,
   FileExcelOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  UserSwitchOutlined,
+  ToolOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { roomApi, type Room } from '../../api/room';
+import { userApi, type User } from '../../api/user';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
 import { RoomImportModal } from '../../components/admin/RoomImportModal';
+import { RoomComputersModal } from '../../components/admin/RoomComputersModal';
 import { exportRoomsToExcel } from '../../utils/excelParser';
 
 const { Text, Title } = Typography;
@@ -54,10 +61,12 @@ const buildRoomFilter = (keyword: string) => {
 
 const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [technicians, setTechnicians] = useState<User[]>([]);
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState("id!=0");
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [size, setSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -66,7 +75,22 @@ const RoomManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  
+  // State xem danh sách máy tính của phòng
+  const [selectedRoomForComputers, setSelectedRoomForComputers] = useState<Room | null>(null);
+  const [isComputersModalOpen, setIsComputersModalOpen] = useState(false);
+
   const [form] = Form.useForm();
+
+  // Tải danh sách kỹ thuật viên
+  const fetchTechnicians = async () => {
+    try {
+      const response = await userApi.getAll();
+      setTechnicians(response.data.filter(u => u.role === 'TECHNICIAN'));
+    } catch {
+      // Bỏ qua lỗi nếu chưa có API hoặc quyền
+    }
+  };
 
   // Hàm tải dữ liệu từ API
   const fetchRooms = async () => {
@@ -85,6 +109,37 @@ const RoomManagement: React.FC = () => {
   useEffect(() => {
     fetchRooms();
   }, [size, page, filter]);
+
+  useEffect(() => {
+    fetchTechnicians();
+  }, []);
+
+  // Xử lý xem danh sách máy tính của phòng
+  const handleOpenComputersModal = (room: Room) => {
+    setSelectedRoomForComputers(room);
+    setIsComputersModalOpen(true);
+  };
+
+  // Xử lý gán nhanh kỹ thuật viên cho phòng máy
+  const handleAssignTechnician = async (roomId: number, technicianId?: number | null) => {
+    try {
+      try {
+        await roomApi.assignTechnician(roomId, technicianId || null);
+      } catch {
+        await roomApi.update(roomId, {
+          technician: technicianId ? { id: Number(technicianId) } as any : null
+        });
+      }
+      message.success(
+        technicianId
+          ? 'Đã phân công kỹ thuật viên phụ trách phòng máy!'
+          : 'Đã hủy phân công kỹ thuật viên cho phòng máy!'
+      );
+      fetchRooms();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Gán kỹ thuật viên thất bại'));
+    }
+  };
 
   // Hàm xuất danh sách phòng máy ra Excel (call GET /admin/rooms/findAll)
   const handleExportExcel = async () => {
@@ -113,18 +168,30 @@ const RoomManagement: React.FC = () => {
 
   const showEditModal = (record: Room) => {
     setEditingRoom(record);
-    form.setFieldsValue(record);
+    form.setFieldsValue({
+      ...record,
+      technicianId: record.technician?.id || record.technicianId || undefined,
+    });
     setIsModalOpen(true);
   };
 
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      const payload = {
+        ...values,
+        technician: values.technicianId
+          ? {
+            id: Number(values.technicianId),
+          }
+          : null,
+      };
+      delete payload.technicianId;
       if (editingRoom) {
-        await roomApi.update(editingRoom.id, values);
+        await roomApi.update(editingRoom.id, payload);
         message.success('Cập nhật phòng máy thành công');
       } else {
-        await roomApi.create(values);
+        await roomApi.create(payload);
         message.success('Thêm phòng máy mới thành công');
       }
       setIsModalOpen(false);
@@ -150,16 +217,23 @@ const RoomManagement: React.FC = () => {
     setFilter(buildRoomFilter(value));
   };
 
-  // Client-side status filter
+  // Client-side status & technician filter
   const displayedRooms = rooms.filter(r => {
-    if (statusFilter === 'ACTIVE') return r.isActive;
-    if (statusFilter === 'INACTIVE') return !r.isActive;
+    if (statusFilter === 'ACTIVE' && !r.isActive) return false;
+    if (statusFilter === 'INACTIVE' && r.isActive) return false;
+    if (selectedTechnicianId === 'UNASSIGNED') {
+      if (r.technician || r.technicianId) return false;
+    } else if (selectedTechnicianId !== 'ALL') {
+      const techId = Number(selectedTechnicianId);
+      if (r.technician?.id !== techId && r.technicianId !== techId) return false;
+    }
     return true;
   });
 
   // Calculate metrics
   const activeRoomsCount = rooms.filter(r => r.isActive).length;
   const inactiveRoomsCount = rooms.filter(r => !r.isActive).length;
+  const assignedRoomsCount = rooms.filter(r => r.technician || r.technicianId).length;
   const totalSeatsSum = rooms.reduce((acc, curr) => acc + (curr.totalSeats || 0), 0);
   const totalComputersSum = rooms.reduce((acc, curr) => acc + (curr.computers?.length || 0), 0);
 
@@ -167,14 +241,14 @@ const RoomManagement: React.FC = () => {
     {
       title: 'STT',
       key: 'index',
-      width: 65,
+      width: 60,
       render: (_value, _record, index) => (page * size) + index + 1,
     },
     {
       title: 'Mã phòng',
       dataIndex: 'roomCode',
       key: 'roomCode',
-      width: 120,
+      width: 110,
       render: (code: string) => <Tag color="blue" style={{ fontWeight: 600 }}>{code}</Tag>
     },
     {
@@ -201,12 +275,47 @@ const RoomManagement: React.FC = () => {
       )
     },
     {
+      title: 'KTV phụ trách',
+      key: 'technician',
+      width: 220,
+      render: (_, record) => {
+        const currentTechId = record.technician?.id || record.technicianId;
+        return (
+          <Select
+            placeholder="Chưa phân công"
+            value={currentTechId || undefined}
+            style={{ width: 195 }}
+            showSearch
+            allowClear
+            optionFilterProp="label"
+            suffixIcon={<UserSwitchOutlined />}
+            onChange={(techId) => handleAssignTechnician(record.id, techId)}
+            options={technicians.map((t) => ({
+              value: t.id,
+              label: `${t.fullName || t.username} (${t.username})`,
+            }))}
+          />
+        );
+      },
+    },
+    {
       title: 'Số lượng máy',
       key: 'computerCount',
       sorter: (a, b) => (a.computers?.length || 0) - (b.computers?.length || 0),
       render: (_, record) => {
         const count = record.computers?.length || 0;
-        return <Tag color="cyan">{count} máy tính</Tag>;
+        return (
+          <Tooltip title="Nhấn để xem chi tiết danh sách máy tính">
+            <Tag
+              color="cyan"
+              style={{ cursor: 'pointer', fontWeight: 600, padding: '2px 8px' }}
+              onClick={() => handleOpenComputersModal(record)}
+              icon={<DesktopOutlined />}
+            >
+              {count} máy tính
+            </Tag>
+          </Tooltip>
+        );
       }
     },
     {
@@ -229,11 +338,19 @@ const RoomManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 110,
+      width: 140,
       fixed: 'right',
       render: (_, record) => (
-        <Space size="middle">
-          <Tooltip title="Chỉnh sửa thông tin">
+        <Space size="small">
+          <Tooltip title="Xem danh sách máy tính trong phòng">
+            <Button
+              icon={<DesktopOutlined />}
+              onClick={() => handleOpenComputersModal(record)}
+              type="text"
+              style={{ color: '#52c41a' }}
+            />
+          </Tooltip>
+          <Tooltip title="Chỉnh sửa thông tin phòng">
             <Button
               icon={<EditOutlined />}
               onClick={() => showEditModal(record)}
@@ -273,20 +390,20 @@ const RoomManagement: React.FC = () => {
         <Col xs={12} sm={6}>
           <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
             <Statistic
-              title="Đang hoạt động"
-              value={activeRoomsCount}
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<CheckCircleOutlined />}
+              title="Đã phân công KTV"
+              value={assignedRoomsCount}
+              valueStyle={{ color: '#1890ff' }}
+              prefix={<UserSwitchOutlined />}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
             <Statistic
-              title="Đang bảo trì"
-              value={inactiveRoomsCount}
-              valueStyle={{ color: '#ff4d4f' }}
-              prefix={<StopOutlined />}
+              title="Đang hoạt động"
+              value={activeRoomsCount}
+              valueStyle={{ color: '#52c41a' }}
+              prefix={<CheckCircleOutlined />}
             />
           </Card>
         </Col>
@@ -344,7 +461,7 @@ const RoomManagement: React.FC = () => {
       >
         {/* Search & Filter Bar */}
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={12} md={10}>
+          <Col xs={24} sm={12} md={8}>
             <Input.Search
               allowClear
               enterButton={<SearchOutlined />}
@@ -359,7 +476,23 @@ const RoomManagement: React.FC = () => {
               onSearch={handleSearch}
             />
           </Col>
-          <Col xs={24} sm={12} md={10}>
+          <Col xs={12} sm={6} md={8}>
+            <Select
+              style={{ width: '100%' }}
+              value={selectedTechnicianId}
+              onChange={setSelectedTechnicianId}
+              placeholder="Lọc theo KTV phụ trách"
+              options={[
+                { value: 'ALL', label: 'Tất cả KTV phụ trách' },
+                { value: 'UNASSIGNED', label: '⚠️ Chưa phân công KTV' },
+                ...technicians.map(t => ({
+                  value: String(t.id),
+                  label: `👨‍🔧 ${t.fullName || t.username}`,
+                }))
+              ]}
+            />
+          </Col>
+          <Col xs={12} sm={6} md={8}>
             <Segmented
               value={statusFilter}
               onChange={(val) => setStatusFilter(val as string)}
@@ -379,6 +512,7 @@ const RoomManagement: React.FC = () => {
               const compCount = room.computers?.length || 0;
               const seats = room.totalSeats || 30;
               const usagePercent = Math.min(Math.round((compCount / seats) * 100), 100);
+              const tech = room.technician;
 
               return (
                 <Col xs={24} sm={12} md={8} lg={6} key={room.id}>
@@ -391,6 +525,9 @@ const RoomManagement: React.FC = () => {
                       position: 'relative'
                     }}
                     actions={[
+                      <Tooltip title="Xem danh sách máy tính">
+                        <DesktopOutlined key="computers" onClick={() => handleOpenComputersModal(room)} style={{ color: '#52c41a' }} />
+                      </Tooltip>,
                       <Tooltip title="Chỉnh sửa">
                         <EditOutlined key="edit" onClick={() => showEditModal(room)} style={{ color: '#1677ff' }} />
                       </Tooltip>,
@@ -424,9 +561,38 @@ const RoomManagement: React.FC = () => {
                       <Text type="secondary" style={{ fontSize: 13 }}>
                         <EnvironmentOutlined style={{ marginRight: 4 }} /> {room.location || 'Khu nhà Lab'}
                       </Text>
+
+                      {/* Thông tin KTV phụ trách */}
+                      <div
+                        style={{
+                          marginTop: 6,
+                          padding: '4px 8px',
+                          background: '#f8f9fa',
+                          borderRadius: 6,
+                          border: '1px solid #f0f0f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: '#595959' }}>
+                          <ToolOutlined style={{ marginRight: 4, color: '#fa8c16' }} /> KTV:
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: tech ? '#1890ff' : '#8c8c8c' }}>
+                          {tech?.fullName || tech?.username || 'Chưa phân công'}
+                        </span>
+                      </div>
+
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
                         <span>Sức chứa: <b>{seats} ghế</b></span>
-                        <span style={{ color: '#1677ff' }}>Máy tính: <b>{compCount} máy</b></span>
+                        <Tooltip title="Xem danh sách máy tính">
+                          <span
+                            style={{ color: '#1677ff', cursor: 'pointer', fontWeight: 600 }}
+                            onClick={() => handleOpenComputersModal(room)}
+                          >
+                            Máy tính: <b>{compCount} máy</b>
+                          </span>
+                        </Tooltip>
                       </div>
                       <Progress
                         percent={usagePercent}
@@ -447,7 +613,7 @@ const RoomManagement: React.FC = () => {
             dataSource={displayedRooms}
             rowKey="id"
             loading={loading}
-            scroll={{ x: 900 }}
+            scroll={{ x: 1100 }}
             pagination={{
               current: page + 1,
               pageSize: size,
@@ -493,6 +659,20 @@ const RoomManagement: React.FC = () => {
               <Input placeholder="Ví dụ: Tầng 2 - Nhà A1" />
             </Form.Item>
 
+            <Form.Item name="technicianId" label="Kỹ thuật viên phụ trách">
+              <Select
+                placeholder="-- Chọn kỹ thuật viên phụ trách (Tùy chọn) --"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                suffixIcon={<UserSwitchOutlined />}
+                options={technicians.map((t) => ({
+                  value: t.id,
+                  label: `${t.fullName || t.username} (@${t.username}) - ${t.email || 'KTV'}`,
+                }))}
+              />
+            </Form.Item>
+
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="totalSeats" label="Số lượng ghế ngồi" rules={[{ required: true, message: 'Nhập số ghế!' }]}>
@@ -514,9 +694,19 @@ const RoomManagement: React.FC = () => {
           onClose={() => setIsImportModalOpen(false)}
           onSuccess={fetchRooms}
         />
+
+        {/* Modal Xem & Quản lý danh sách máy tính của phòng */}
+        <RoomComputersModal
+          open={isComputersModalOpen}
+          room={selectedRoomForComputers}
+          onClose={() => setIsComputersModalOpen(false)}
+          onRefreshRoom={fetchRooms}
+        />
       </Card>
     </div>
   );
 };
 
 export default RoomManagement;
+
+

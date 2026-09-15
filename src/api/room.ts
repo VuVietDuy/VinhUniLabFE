@@ -1,6 +1,7 @@
 import type { PageResponse } from "../type/PageResponse";
 import axiosClient from "./axiosClient";
 import type { Computer } from "./computer";
+import type { User } from "./user";
 
 export interface Room {
   id: number;
@@ -9,7 +10,9 @@ export interface Room {
   location: string; // Khớp với DB: location thay vì building/floor
   totalSeats: number;
   isActive: boolean;
-  computers: Computer[]; // Thêm trường này để chứa danh sách máy tính trong phòng
+  technicianId?: number | null;
+  technician?: User | null;
+  computers?: Computer[]; // Thêm trường này để chứa danh sách máy tính trong phòng
 }
 
 export const roomApi = {
@@ -20,4 +23,9 @@ export const roomApi = {
   saveAll: (data: Partial<Room>[]) => axiosClient.post<Room[]>('/admin/rooms/saveAll', data),
   update: (id: number, data: Partial<Room>) => axiosClient.put<Room>(`/admin/rooms/update?id=${id}`, data),
   delete: (id: number) => axiosClient.delete(`/admin/rooms/delete?id=${id}`),
+  assignTechnician: (id: number, technicianId?: number | null) =>
+    axiosClient.patch<Room>('/admin/rooms/assign-technician', { id, technicianId }),
+  getMyRooms: (params?: any) =>
+    axiosClient.get<PageResponse<Room>>('/admin/rooms/my-rooms', { params }),
 };
+

@@ -38,12 +38,14 @@ import {
   RollbackOutlined,
   CloseCircleOutlined,
   LeftOutlined,
-  RightOutlined
+  RightOutlined,
+  FileExcelOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { bookingApi, type BookingStatus } from '../../api/booking';
 import { roomApi, type Room } from '../../api/room';
 import { timeSlotApi, type TimeSlot } from '../../api/timeSlot';
+import { BookingImportModal } from '../../components/admin/BookingImportModal';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = TimePicker;
@@ -54,6 +56,7 @@ const TeacherBooking: React.FC = () => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('history');
 
   // Selected state for Visual Booking Form
@@ -355,25 +358,41 @@ const TeacherBooking: React.FC = () => {
             </Text>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              size="large"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                form.resetFields();
-                if (rooms.length > 0) handleSelectRoom(rooms[0].id);
-                setIsModalOpen(true);
-              }}
-              style={{
-                backgroundColor: '#ffffff',
-                color: '#1677ff',
-                fontWeight: 600,
-                border: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
-              }}
-            >
-              Tạo yêu cầu mượn phòng
-            </Button>
+            <Space wrap>
+              <Button
+                size="large"
+                icon={<FileExcelOutlined />}
+                onClick={() => setIsImportModalOpen(true)}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  backdropFilter: 'blur(4px)',
+                }}
+              >
+                Import TKB Excel
+              </Button>
+              <Button
+                type="primary"
+                size="large"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  form.resetFields();
+                  if (rooms.length > 0) handleSelectRoom(rooms[0].id);
+                  setIsModalOpen(true);
+                }}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#1677ff',
+                  fontWeight: 600,
+                  border: 'none',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                }}
+              >
+                Tạo yêu cầu mượn phòng
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>
@@ -394,7 +413,14 @@ const TeacherBooking: React.FC = () => {
               children: (
                 <div>
                   <Row justify="end" style={{ marginBottom: 16 }}>
-                    <Space>
+                    <Space wrap>
+                      <Button
+                        icon={<FileExcelOutlined />}
+                        onClick={() => setIsImportModalOpen(true)}
+                        style={{ color: '#27ae60', borderColor: '#27ae60', fontWeight: 600 }}
+                      >
+                        Import TKB Excel
+                      </Button>
                       <Select
                         placeholder="Lọc trạng thái"
                         allowClear
@@ -975,6 +1001,17 @@ const TeacherBooking: React.FC = () => {
           </div>
         </Form>
       </Modal>
+
+      {/* Modal Import Lịch Mượn Phòng Hàng Loạt từ Excel */}
+      <BookingImportModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          fetchMyBookings(1);
+          if (selectedRoomId) fetchRoomBookings(selectedRoomId);
+        }}
+        isTeacherMode={true}
+      />
     </div>
   );
 };

@@ -53,9 +53,15 @@ interface BookingImportModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  isTeacherMode?: boolean;
 }
 
-export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, onClose, onSuccess }) => {
+export const BookingImportModal: React.FC<BookingImportModalProps> = ({
+  open,
+  onClose,
+  onSuccess,
+  isTeacherMode = false,
+}) => {
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedScheduleRow[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -121,9 +127,23 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
           setUsers(loadedUsers);
           setTimeSlots(loadedSlots);
 
-          if (loadedUsers.length > 0 && !defaultUserId) {
-            const adminOrFirst = loadedUsers.find((u) => u.role === 'ADMIN') || loadedUsers[0];
-            setDefaultUserId(adminOrFirst.id);
+          // Lấy ID người dùng hiện tại từ localStorage
+          let currentUserId: number | undefined = undefined;
+          try {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+              const parsed = JSON.parse(userStr);
+              currentUserId = parsed.id || parsed.userId;
+            }
+          } catch {}
+
+          if (currentUserId) {
+            setDefaultUserId(currentUserId);
+          } else if (loadedUsers.length > 0 && !defaultUserId) {
+            const defaultUser = isTeacherMode
+              ? loadedUsers.find((u) => u.role === 'TEACHER') || loadedUsers[0]
+              : loadedUsers.find((u) => u.role === 'ADMIN') || loadedUsers[0];
+            setDefaultUserId(defaultUser?.id);
           }
         } catch {
           message.error('Không thể tải danh mục phòng máy hoặc người dùng');
@@ -132,7 +152,7 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
 
       fetchPrerequisites();
     }
-  }, [open]);
+  }, [open, isTeacherMode]);
 
   // Đọc lại file khi thay đổi cài đặt autoRepeatWeekly hoặc khi danh mục phòng/user vừa tải xong
   useEffect(() => {
@@ -269,6 +289,7 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
       for (const row of validRows) {
         const roomId = row.matchedRoom!.id;
         const userId = row.matchedUser?.id || defaultUserId || 1;
+        const bookingStatus: any = isTeacherMode ? 'PENDING' : 'APPROVED';
 
         for (const dateStr of row.generatedDates) {
           allBookingPayloads.push({
@@ -280,7 +301,7 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
             startTime: `${dateStr}T${row.startTimeStr}`,
             endTime: `${dateStr}T${row.endTimeStr}`,
             purpose: row.purpose,
-            status: 'APPROVED',
+            status: bookingStatus,
           });
         }
       }
@@ -329,11 +350,17 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
             `Import hoàn tất: ${successCount}/${total} buổi học thành công (${failCount} buổi bị lỗi hoặc trùng lịch)`
           );
         } else {
-          message.success(`Đã import thành công toàn bộ ${total} buổi học vào hệ thống!`);
+          message.success(
+            isTeacherMode
+              ? `Đã gửi thành công toàn bộ ${total} yêu cầu mượn phòng (Chờ duyệt) vào hệ thống!`
+              : `Đã import thành công toàn bộ ${total} buổi học vào hệ thống!`
+          );
         }
       } else {
         message.success(
-          `Đã import thành công ${validRows.length} học phần (${allBookingPayloads.length} buổi học) vào hệ thống!`
+          isTeacherMode
+            ? `Đã gửi yêu cầu mượn phòng thành công cho ${validRows.length} học phần (${allBookingPayloads.length} buổi học)!`
+            : `Đã import thành công ${validRows.length} học phần (${allBookingPayloads.length} buổi học) vào hệ thống!`
         );
       }
 
@@ -348,51 +375,47 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
   };
 
   // Dữ liệu bảng xem trước sau khi filter tìm kiếm
-  const displayData = parsedData.filter((item) => {
-    if (filterValid === 'VALID' && !item.isValid) return false;
-    if (filterValid === 'INVALID' && item.isValid) return false;
+  const filteredPreviewData = parsedData.filter((row) => {
+    if (filterValid === 'VALID' && !row.isValid) return false;
+    if (filterValid === 'INVALID' && row.isValid) return false;
 
     if (searchText.trim()) {
       const kw = searchText.toLowerCase().trim();
-      const matchSub = item.subjectName.toLowerCase().includes(kw) || item.subjectCode.toLowerCase().includes(kw);
-      const matchRoom = item.roomInput.toLowerCase().includes(kw) || (item.matchedRoom?.roomName || '').toLowerCase().includes(kw);
-      const matchTeacher = item.teacherInput.toLowerCase().includes(kw);
-      return matchSub || matchRoom || matchTeacher;
+      const subjectMatch = row.subjectName.toLowerCase().includes(kw);
+      const codeMatch = row.subjectCode.toLowerCase().includes(kw);
+      const roomMatch = (row.matchedRoom?.roomName || row.roomInput || '').toLowerCase().includes(kw);
+      const teacherMatch = (row.matchedUser?.fullName || row.teacherInput || '').toLowerCase().includes(kw);
+      return subjectMatch || codeMatch || roomMatch || teacherMatch;
     }
+
     return true;
   });
 
   const columns: ColumnsType<ParsedScheduleRow> = [
     {
       title: 'STT',
-      dataIndex: 'stt',
-      key: 'stt',
-      width: 55,
-      align: 'center',
+      dataIndex: 'index',
+      key: 'index',
+      width: 50,
+      render: (_, __, i) => i + 1,
     },
     {
-      title: 'Mã & Tên lớp học phần',
+      title: 'Môn học / Học phần',
       key: 'subject',
-      width: 260,
+      width: 200,
       render: (_, record) => (
         <div>
-          <Space orientation="horizontal" size={4} wrap>
-            {record.subjectCode && (
-              <Tag color="geekblue" style={{ fontWeight: 600 }}>
-                {record.subjectCode}
-              </Tag>
-            )}
-            {record.cohort && <Tag color="default">{record.cohort}</Tag>}
-            {record.credits && <Tag color="purple">{record.credits} TC</Tag>}
-          </Space>
-          <div style={{ fontWeight: 500, color: '#1677ff', marginTop: 3 }}>
+          <Text strong style={{ color: '#1677ff' }}>
             {record.subjectName}
+          </Text>
+          <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+            Mã HP: <b>{record.subjectCode}</b> {record.credits ? `(${record.credits} TC)` : ''}
           </div>
-          {record.registeredStudents ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Sĩ số: {record.registeredStudents} SV
-            </Text>
-          ) : null}
+          {record.className && (
+            <Tag color="geekblue" style={{ fontSize: 11, marginTop: 2 }}>
+              Lớp: {record.className}
+            </Tag>
+          )}
         </div>
       ),
     },
@@ -513,7 +536,11 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
       title={
         <Space>
           <FileExcelOutlined style={{ color: '#52c41a', fontSize: 22 }} />
-          <span style={{ fontSize: 18, fontWeight: 600 }}>Import Lịch Thực Hành / Đặt Phòng từ Excel</span>
+          <span style={{ fontSize: 18, fontWeight: 600 }}>
+            {isTeacherMode
+              ? 'Import Thời Khóa Biểu & Đăng Ký Mượn Phòng từ Excel'
+              : 'Import Lịch Thực Hành / Đặt Phòng từ Excel'}
+          </span>
         </Space>
       }
       open={open}
@@ -547,7 +574,9 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
                   borderColor: validRows.length > 0 ? '#52c41a' : undefined,
                 }}
               >
-                Xác nhận Import ({validRows.length} lớp - {totalSessionsToCreate} buổi học)
+                {isTeacherMode
+                  ? `Gửi yêu cầu mượn (${validRows.length} lớp - ${totalSessionsToCreate} buổi học)`
+                  : `Xác nhận Import (${validRows.length} lớp - ${totalSessionsToCreate} buổi học)`}
               </Button>
             )}
           </Space>
@@ -556,6 +585,16 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
     >
       {parsedData.length === 0 ? (
         <div style={{ padding: '16px 0' }}>
+          {isTeacherMode && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Đăng ký mượn phòng hàng loạt qua Thời khóa biểu"
+              description="Hệ thống sẽ tự động quét file Excel Thời khóa biểu của bạn và tạo các yêu cầu mượn phòng (trạng thái Chờ duyệt - PENDING). Quản trị viên sẽ phê duyệt sau khi kiểm tra."
+            />
+          )}
+
           <Card style={{ marginBottom: 16, backgroundColor: '#fafafa' }} size="small">
             <Row gutter={[16, 12]} align="middle">
               <Col xs={24} md={14}>
@@ -746,7 +785,7 @@ export const BookingImportModal: React.FC<BookingImportModalProps> = ({ open, on
 
           <Table
             columns={columns}
-            dataSource={displayData}
+            dataSource={filteredPreviewData}
             rowKey="key"
             size="small"
             loading={parsing}

@@ -18,7 +18,8 @@ import {
   Statistic,
   Tooltip,
   Typography,
-  Badge
+  Badge,
+  Alert
 } from 'antd';
 import {
   CalendarOutlined,
@@ -35,7 +36,9 @@ import {
   CheckOutlined,
   CloseOutlined,
   FileExcelOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  CheckSquareOutlined,
+  ClearOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -65,6 +68,11 @@ const BookingManagement: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // Row selection & Bulk actions
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   const [form] = Form.useForm();
 
   // Filtering & Pagination
@@ -153,6 +161,62 @@ const BookingManagement: React.FC = () => {
     }
   };
 
+  // Duyệt hàng loạt các đơn mượn phòng đã chọn
+  const handleBulkApprove = async () => {
+    if (selectedRowKeys.length === 0) return;
+    const keysToApprove = selectedRowKeys.map(k => Number(k));
+    setBulkLoading(true);
+    try {
+      const results = await Promise.allSettled(keysToApprove.map(id => bookingApi.approve(id)));
+      let successCount = 0;
+      let failCount = 0;
+      results.forEach(res => {
+        if (res.status === 'fulfilled') successCount++;
+        else failCount++;
+      });
+
+      if (failCount === 0) {
+        message.success(`Đã duyệt thành công ${successCount} yêu cầu đặt phòng!`);
+      } else {
+        message.warning(`Đã duyệt ${successCount} yêu cầu (${failCount} yêu cầu thất bại hoặc đã được xử lý)`);
+      }
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch {
+      message.error('Lỗi khi duyệt hàng loạt');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  // Từ chối hàng loạt các đơn mượn phòng đã chọn
+  const handleBulkReject = async () => {
+    if (selectedRowKeys.length === 0) return;
+    const keysToReject = selectedRowKeys.map(k => Number(k));
+    setBulkLoading(true);
+    try {
+      const results = await Promise.allSettled(keysToReject.map(id => bookingApi.reject(id)));
+      let successCount = 0;
+      let failCount = 0;
+      results.forEach(res => {
+        if (res.status === 'fulfilled') successCount++;
+        else failCount++;
+      });
+
+      if (failCount === 0) {
+        message.success(`Đã từ chối ${successCount} yêu cầu đặt phòng!`);
+      } else {
+        message.warning(`Đã từ chối ${successCount} yêu cầu (${failCount} yêu cầu thất bại hoặc đã được xử lý)`);
+      }
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch {
+      message.error('Lỗi khi từ chối hàng loạt');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await bookingApi.delete(id);
@@ -195,10 +259,35 @@ const BookingManagement: React.FC = () => {
     return true;
   });
 
+  // Chọn nhanh tất cả đơn chờ duyệt trên bảng
+  const handleSelectAllPending = () => {
+    const pendingKeys = filteredBookings
+      .filter(b => b.status === 'PENDING')
+      .map(b => b.id);
+
+    if (pendingKeys.length === 0) {
+      message.info('Không có đơn mượn phòng nào đang chờ duyệt trong danh sách hiện tại');
+      return;
+    }
+    setSelectedRowKeys(pendingKeys);
+    message.success(`Đã chọn nhanh ${pendingKeys.length} đơn mượn phòng chờ duyệt!`);
+  };
+
   // Calculate Metrics
   const pendingCount = bookings.filter(b => b.status === 'PENDING').length;
   const approvedCount = bookings.filter(b => b.status === 'APPROVED').length;
   const rejectedCount = bookings.filter(b => b.status === 'REJECTED' || b.status === 'CANCELLED').length;
+
+  // Tính số lượng đơn PENDING trong các dòng được chọn
+  const selectedBookingsList = bookings.filter(b => selectedRowKeys.includes(b.id));
+  const pendingCountInSelection = selectedBookingsList.filter(b => b.status === 'PENDING').length;
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => {
+      setSelectedRowKeys(keys);
+    },
+  };
 
   const columns: ColumnsType<Booking> = [
     {
@@ -288,6 +377,7 @@ const BookingManagement: React.FC = () => {
                   size="small"
                   icon={<CheckOutlined />}
                   onClick={() => updateStatus(record.id, 'approve')}
+                  style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
                 >
                   Duyệt
                 </Button>
@@ -400,8 +490,8 @@ const BookingManagement: React.FC = () => {
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
       >
         {/* Search & Filter Bar */}
-        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={10}>
+        <Row gutter={[12, 12]} style={{ marginBottom: 16 }} align="middle">
+          <Col xs={24} sm={8}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
@@ -410,7 +500,7 @@ const BookingManagement: React.FC = () => {
               onChange={(e) => setSearchText(e.target.value)}
             />
           </Col>
-          <Col xs={12} sm={7}>
+          <Col xs={12} sm={5}>
             <Select
               style={{ width: '100%' }}
               placeholder="Lọc theo phòng máy"
@@ -420,7 +510,7 @@ const BookingManagement: React.FC = () => {
               options={rooms.map(r => ({ value: r.id, label: r.roomName }))}
             />
           </Col>
-          <Col xs={12} sm={7}>
+          <Col xs={12} sm={5}>
             <Select
               style={{ width: '100%' }}
               value={statusFilter}
@@ -434,9 +524,95 @@ const BookingManagement: React.FC = () => {
               ]}
             />
           </Col>
+          <Col xs={24} sm={6} style={{ textAlign: 'right' }}>
+            <Button
+              icon={<CheckSquareOutlined style={{ color: '#faad14' }} />}
+              onClick={handleSelectAllPending}
+              disabled={pendingCount === 0}
+            >
+              Chọn các đơn chờ duyệt ({pendingCount})
+            </Button>
+          </Col>
         </Row>
 
+        {/* Thanh công cụ thao tác hàng loạt (Bulk Actions Bar) */}
+        {selectedRowKeys.length > 0 && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 16px',
+              background: '#e6f7ff',
+              border: '1px solid #91d5ff',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            <Space align="center" wrap>
+              <CheckCircleOutlined style={{ color: '#1677ff', fontSize: 18 }} />
+              <Text strong style={{ fontSize: 14 }}>
+                Đã chọn <span style={{ color: '#1677ff', fontSize: 16 }}>{selectedRowKeys.length}</span> đơn mượn phòng
+              </Text>
+              {pendingCountInSelection > 0 && (
+                <Tag color="gold" style={{ fontWeight: 600 }}>
+                  {pendingCountInSelection} đơn Chờ duyệt
+                </Tag>
+              )}
+            </Space>
+
+            <Space wrap>
+              <Popconfirm
+                title={`Duyệt hàng loạt ${selectedRowKeys.length} yêu cầu đã chọn?`}
+                description="Hệ thống sẽ cập nhật trạng thái các đơn này sang 'Đã duyệt' (APPROVED)."
+                onConfirm={handleBulkApprove}
+                okText="Xác nhận duyệt"
+                cancelText="Hủy"
+                disabled={bulkLoading}
+              >
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  loading={bulkLoading}
+                  style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', fontWeight: 600 }}
+                >
+                  Duyệt hàng loạt ({selectedRowKeys.length})
+                </Button>
+              </Popconfirm>
+
+              <Popconfirm
+                title={`Từ chối hàng loạt ${selectedRowKeys.length} yêu cầu đã chọn?`}
+                description="Hệ thống sẽ cập nhật trạng thái các đơn này sang 'Từ chối' (REJECTED)."
+                onConfirm={handleBulkReject}
+                okText="Xác nhận từ chối"
+                cancelText="Hủy"
+                disabled={bulkLoading}
+              >
+                <Button
+                  danger
+                  icon={<CloseOutlined />}
+                  loading={bulkLoading}
+                  style={{ fontWeight: 600 }}
+                >
+                  Từ chối hàng loạt ({selectedRowKeys.length})
+                </Button>
+              </Popconfirm>
+
+              <Button
+                icon={<ClearOutlined />}
+                onClick={() => setSelectedRowKeys([])}
+                disabled={bulkLoading}
+              >
+                Bỏ chọn
+              </Button>
+            </Space>
+          </div>
+        )}
+
         <Table
+          rowSelection={rowSelection}
           columns={columns}
           dataSource={filteredBookings}
           rowKey="id"
