@@ -52,11 +52,26 @@ const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
+  const getDisplayName = () => {
+    const storedFullName = localStorage.getItem('fullName');
+    if (storedFullName && storedFullName.trim()) return storedFullName.trim();
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      if (u.fullName && u.fullName.trim()) return u.fullName.trim();
+      if (u.username && u.username.trim()) return u.username.trim();
+    } catch {}
+    return localStorage.getItem('username') || 'Quản trị viên';
+  };
+
   const handleMenuClick = (e: any) => {
     navigate(e.key);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('username');
+    localStorage.removeItem('fullName');
     logout();
     message.success('Đã đăng xuất thành công');
     navigate('/login');
@@ -92,7 +107,7 @@ const AdminLayout: React.FC = () => {
           <Dropdown menu={{ items: userMenuIds }} trigger={['click']}>
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#87d068' }} />
-              <span style={{ fontWeight: 500 }}>Admin User</span>
+              <span style={{ fontWeight: 500 }}>{getDisplayName()}</span>
               <DownOutlined style={{ fontSize: '12px' }} />
             </Space>
           </Dropdown>

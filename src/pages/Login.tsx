@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Typography, message, Row, Col, Checkbox, Space, Tag, Tooltip } from 'antd';
+import { Form, Input, Button, Card, Typography, message, Row, Col, Checkbox, Space } from 'antd';
 import {
   UserOutlined,
   LockOutlined,
   DesktopOutlined,
   CheckCircleOutlined,
-  SafetyCertificateOutlined,
-  ThunderboltOutlined,
   BankOutlined
 } from '@ant-design/icons';
 import { login } from '../api/auth';
@@ -46,19 +44,6 @@ const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Đăng nhập nhanh Demo cho các vai trò
-  const handleQuickDemoLogin = (role: 'ADMIN' | 'TEACHER' | 'TECHNICIAN') => {
-    const demoAccounts = {
-      ADMIN: { username: 'admin', password: '123' },
-      TEACHER: { username: 'teacher', password: '123' },
-      TECHNICIAN: { username: 'technician', password: '123' },
-    };
-
-    const acc = demoAccounts[role];
-    form.setFieldsValue(acc);
-    onFinish({ username: acc.username, password: acc.password });
   };
 
   return (

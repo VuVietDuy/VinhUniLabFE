@@ -19,8 +19,7 @@ import {
   Tooltip,
   Typography,
   Progress,
-  Select,
-  Avatar
+  Select
 } from 'antd';
 import {
   PlusOutlined,
@@ -38,8 +37,7 @@ import {
   FileExcelOutlined,
   DownloadOutlined,
   UserSwitchOutlined,
-  ToolOutlined,
-  UserOutlined
+  ToolOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { roomApi, type Room } from '../../api/room';
@@ -232,7 +230,6 @@ const RoomManagement: React.FC = () => {
 
   // Calculate metrics
   const activeRoomsCount = rooms.filter(r => r.isActive).length;
-  const inactiveRoomsCount = rooms.filter(r => !r.isActive).length;
   const assignedRoomsCount = rooms.filter(r => r.technician || r.technicianId).length;
   const totalSeatsSum = rooms.reduce((acc, curr) => acc + (curr.totalSeats || 0), 0);
   const totalComputersSum = rooms.reduce((acc, curr) => acc + (curr.computers?.length || 0), 0);

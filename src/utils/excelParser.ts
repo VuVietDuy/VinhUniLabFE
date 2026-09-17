@@ -907,6 +907,7 @@ export interface ParsedScheduleRow {
   subjectCode: string;        // Mã HP
   credits?: number;           // Số TC
   subjectName: string;        // Lớp học phần
+  className?: string;         // Tên lớp / Lớp sinh viên
   cohort?: string;            // Khóa học (K65,...)
   expectedStudents?: number;  // Số SV dự kiến
   registeredStudents?: number;// Số SV đã ĐK

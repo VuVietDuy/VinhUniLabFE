@@ -33,7 +33,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { authApi } from '../api/auth';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 
 const roleBadgeMap: Record<string, { color: string; label: string }> = {

@@ -42,16 +42,31 @@ const items: MenuItem[] = [
 const TeacherLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { colorBgContainer },
   } = theme.useToken();
   const navigate = useNavigate();
   const { logout } = useAuth();
+
+  const getDisplayName = () => {
+    const storedFullName = localStorage.getItem('fullName');
+    if (storedFullName && storedFullName.trim()) return storedFullName.trim();
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      if (u.fullName && u.fullName.trim()) return u.fullName.trim();
+      if (u.username && u.username.trim()) return u.username.trim();
+    } catch {}
+    return localStorage.getItem('username') || 'Giảng viên';
+  };
 
   const handleMenuClick = (e: any) => {
     navigate(e.key);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('username');
+    localStorage.removeItem('fullName');
     logout();
     message.success('Đã đăng xuất thành công');
     navigate('/login');
@@ -86,8 +101,8 @@ const TeacherLayout: React.FC = () => {
         <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <Dropdown menu={{ items: userMenu }} trigger={['click']}>
             <Space style={{ cursor: 'pointer' }}>
-              <Avatar icon={<UserOutlined />} />
-              <span style={{ fontWeight: 500 }}>Teacher User</span>
+              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
+              <span style={{ fontWeight: 500 }}>{getDisplayName()}</span>
               <DownOutlined style={{ fontSize: '12px' }} />
             </Space>
           </Dropdown>

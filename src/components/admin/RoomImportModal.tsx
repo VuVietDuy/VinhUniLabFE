@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Upload, Button, Table, Tag, Space, Alert, Typography, message, Tooltip, Progress } from 'antd';
+import { Modal, Upload, Button, Table, Tag, Space, Alert, message, Tooltip } from 'antd';
 import {
   InboxOutlined,
   FileExcelOutlined,
@@ -14,8 +14,6 @@ import { parseRoomsFromExcel, downloadSampleExcel, type ParsedRoomRow } from '..
 import { roomApi, type Room } from '../../api/room';
 import { getApiErrorMessage } from '../../utils/apiError';
 
-const { Text, Title } = Typography;
-
 interface RoomImportModalProps {
   open: boolean;
   onClose: () => void;
@@ -23,14 +21,12 @@ interface RoomImportModalProps {
 }
 
 export const RoomImportModal: React.FC<RoomImportModalProps> = ({ open, onClose, onSuccess }) => {
-  const [fileList, setFileList] = useState<any[]>([]);
   const [parsedData, setParsedData] = useState<ParsedRoomRow[]>([]);
   const [parsing, setParsing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState<string>('');
 
   const handleReset = () => {
-    setFileList([]);
     setParsedData([]);
     setFileName('');
   };

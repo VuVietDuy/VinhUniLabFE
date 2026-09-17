@@ -15,7 +15,6 @@ import {
   Popconfirm,
   message,
   Typography,
-  Badge,
   Form,
   Empty
 } from 'antd';
@@ -42,7 +41,7 @@ import type { Room } from '../../api/room';
 import { getApiErrorMessage, isFormValidationError } from '../../utils/apiError';
 import { exportComputersToExcel } from '../../utils/excelParser';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export const statusMap: Record<ComputerStatus, { color: string; label: string; icon: React.ReactNode }> = {
   AVAILABLE: { color: 'success', label: 'Sẵn sàng', icon: <CheckCircleOutlined /> },

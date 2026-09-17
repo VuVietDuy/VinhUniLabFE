@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button, Card, Col, Row, Space, Typography, Tag, Badge, Tabs, Collapse } from 'antd';
 import {
   DesktopOutlined,
@@ -19,7 +19,6 @@ import {
   MailOutlined,
   GlobalOutlined,
   ClockCircleOutlined,
-  RightOutlined,
   SafetyCertificateOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';

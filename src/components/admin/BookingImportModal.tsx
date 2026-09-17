@@ -30,8 +30,6 @@ import {
   CloudUploadOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
-  UserOutlined,
-  DesktopOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';

@@ -8,7 +8,6 @@ import {
   Modal,
   Form,
   DatePicker,
-  TimePicker,
   Select,
   Input,
   message,
@@ -18,8 +17,7 @@ import {
   Statistic,
   Tooltip,
   Typography,
-  Badge,
-  Alert
+  Badge
 } from 'antd';
 import {
   CalendarOutlined,
@@ -49,7 +47,6 @@ import { BookingImportModal } from '../../components/admin/BookingImportModal';
 import { exportBookingsToExcel } from '../../utils/excelParser';
 
 const { Text } = Typography;
-const { RangePicker } = TimePicker;
 
 export const statusMap: Record<BookingStatus, { color: string; text: string; icon: React.ReactNode }> = {
   PENDING: { color: 'gold', text: 'Chờ duyệt', icon: <SyncOutlined spin /> },
@@ -76,9 +73,8 @@ const BookingManagement: React.FC = () => {
   const [form] = Form.useForm();
 
   // Filtering & Pagination
-  const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
-  const [total, setTotal] = useState(0);
+  const [clientPage, setClientPage] = useState(1);
+  const [clientPageSize, setClientPageSize] = useState(10);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedRoomId, setSelectedRoomId] = useState<number | undefined>(undefined);
@@ -87,14 +83,16 @@ const BookingManagement: React.FC = () => {
     setLoading(true);
     try {
       const [bookRes, roomRes, slotRes] = await Promise.all([
-        bookingApi.search({ filter: 'id!=0', page, size, sort: ['id,desc'] }),
+        bookingApi.search({ filter: 'id!=0', page: 0, size: 1000, sort: ['id,desc'] }),
         roomApi.getAll(),
         timeSlotApi.getAll().catch(() => ({ data: [] as TimeSlot[] }))
       ]);
-      setBookings(bookRes.data.content);
-      setRooms(roomRes.data);
-      setTimeSlots(slotRes.data);
-      setTotal(bookRes.data.totalElements);
+      const list = bookRes.data?.content || (Array.isArray(bookRes.data) ? bookRes.data : []);
+      setBookings(list);
+      const roomList = Array.isArray(roomRes.data) ? roomRes.data : (roomRes.data as any)?.content || [];
+      setRooms(roomList);
+      const slotList = Array.isArray(slotRes.data) ? slotRes.data : (slotRes.data as any)?.content || [];
+      setTimeSlots(slotList);
     } catch {
       message.error('Lỗi tải dữ liệu mượn phòng');
     } finally {
@@ -104,7 +102,7 @@ const BookingManagement: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [page, size]);
+  }, []);
 
   // Tự động điền khung giờ khi chọn tiết học
   const handleTimeSlotChange = (slotId?: number) => {
@@ -294,11 +292,16 @@ const BookingManagement: React.FC = () => {
       title: 'STT',
       key: 'index',
       width: 60,
-      render: (_value, _record, index) => (page * size) + index + 1,
+      render: (_value, _record, index) => (clientPage - 1) * clientPageSize + index + 1,
     },
     {
       title: 'Người mượn',
       key: 'user',
+      sorter: (a, b) => {
+        const nameA = a.user?.fullName || a.userName || '';
+        const nameB = b.user?.fullName || b.userName || '';
+        return nameA.localeCompare(nameB, 'vi', { sensitivity: 'base' });
+      },
       render: (_, record) => {
         const name = record.user?.fullName || record.userName || 'Giảng viên';
         const email = record.user?.email;
@@ -316,6 +319,11 @@ const BookingManagement: React.FC = () => {
     {
       title: 'Phòng máy',
       key: 'room',
+      sorter: (a, b) => {
+        const roomA = a.room?.roomName || a.roomName || '';
+        const roomB = b.room?.roomName || b.roomName || '';
+        return roomA.localeCompare(roomB, 'vi', { sensitivity: 'base' });
+      },
       render: (_, record) => {
         const roomName = record.room?.roomName || record.roomName || 'N/A';
         return (
@@ -329,6 +337,12 @@ const BookingManagement: React.FC = () => {
     {
       title: 'Ngày & Khung giờ',
       key: 'time',
+      sorter: (a, b) => {
+        const startA = a.startTime || a.bookingDate || '';
+        const startB = b.startTime || b.bookingDate || '';
+        return startA.localeCompare(startB);
+      },
+      defaultSortOrder: 'descend',
       render: (_, record) => {
         const dateStr = record.bookingDate || (record.startTime?.includes('T') ? record.startTime.split('T')[0] : record.startTime);
         const startStr = record.startTime?.includes('T') ? record.startTime.split('T')[1]?.substring(0, 5) : record.startTime?.substring(0, 5);
@@ -350,6 +364,7 @@ const BookingManagement: React.FC = () => {
       dataIndex: 'purpose',
       key: 'purpose',
       ellipsis: true,
+      sorter: (a, b) => (a.purpose || '').localeCompare(b.purpose || '', 'vi', { sensitivity: 'base' }),
       render: (text: string) => <Tooltip title={text}>{text || 'Dạy thực hành'}</Tooltip>
     },
     {
@@ -357,6 +372,7 @@ const BookingManagement: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 140,
+      sorter: (a, b) => (a.status || '').localeCompare(b.status || ''),
       render: (status: BookingStatus) => {
         const item = statusMap[status] || statusMap.PENDING;
         return <Tag color={item.color} icon={item.icon}>{item.text}</Tag>;
@@ -417,7 +433,7 @@ const BookingManagement: React.FC = () => {
           <Card size="small" style={{ borderRadius: 8, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
             <Statistic
               title="Tổng đơn mượn"
-              value={total}
+              value={bookings.length}
               prefix={<CalendarOutlined style={{ color: '#1677ff' }} />}
             />
           </Card>
@@ -497,7 +513,10 @@ const BookingManagement: React.FC = () => {
               prefix={<SearchOutlined />}
               placeholder="Tìm theo người mượn, tên phòng, mục đích..."
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              onChange={(e) => {
+                setSearchText(e.target.value);
+                setClientPage(1);
+              }}
             />
           </Col>
           <Col xs={12} sm={5}>
@@ -506,7 +525,10 @@ const BookingManagement: React.FC = () => {
               placeholder="Lọc theo phòng máy"
               allowClear
               value={selectedRoomId}
-              onChange={setSelectedRoomId}
+              onChange={(val) => {
+                setSelectedRoomId(val);
+                setClientPage(1);
+              }}
               options={rooms.map(r => ({ value: r.id, label: r.roomName }))}
             />
           </Col>
@@ -514,7 +536,10 @@ const BookingManagement: React.FC = () => {
             <Select
               style={{ width: '100%' }}
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(val) => {
+                setStatusFilter(val);
+                setClientPage(1);
+              }}
               options={[
                 { value: 'ALL', label: 'Tất cả trạng thái' },
                 { value: 'PENDING', label: '🟡 Chờ duyệt' },
@@ -619,12 +644,14 @@ const BookingManagement: React.FC = () => {
           loading={loading}
           scroll={{ x: 1100 }}
           pagination={{
-            current: page + 1,
-            pageSize: size,
-            total,
+            current: clientPage,
+            pageSize: clientPageSize,
+            total: filteredBookings.length,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
             onChange: (p, s) => {
-              setPage(p - 1);
-              setSize(s);
+              setClientPage(p);
+              setClientPageSize(s);
             },
           }}
         />
@@ -661,10 +688,6 @@ const BookingManagement: React.FC = () => {
 
             <Form.Item name="bookingDate" label="Ngày mượn" rules={[{ required: true, message: 'Vui lòng chọn ngày!' }]}>
               <DatePicker style={{ width: '100%' }} minDate={dayjs()} />
-            </Form.Item>
-
-            <Form.Item name="timeRange" label="Khung giờ mượn" rules={[{ required: true, message: 'Vui lòng chọn khung giờ!' }]}>
-              <RangePicker format="HH:mm" style={{ width: '100%' }} />
             </Form.Item>
 
             <Form.Item name="purpose" label="Mục đích sử dụng / Tên lớp" rules={[{ required: true, message: 'Vui lòng nhập mục đích!' }]}>
