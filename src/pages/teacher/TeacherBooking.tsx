@@ -46,7 +46,11 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
   ThunderboltFilled,
-  CheckOutlined
+  CheckOutlined,
+  UserOutlined,
+  ToolOutlined,
+  PhoneOutlined,
+  MailOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { bookingApi, type Booking, type BookingStatus } from '../../api/booking';
@@ -537,24 +541,46 @@ const TeacherBooking: React.FC = () => {
       render: (_: any, __: any, index: number) => (myBookingsPage - 1) * myBookingsPageSize + index + 1,
     },
     {
-      title: 'Phòng máy',
+      title: 'Phòng máy & KTV',
       key: 'room',
       sorter: (a: any, b: any) => {
         const nameA = a.room?.roomName || a.roomName || '';
         const nameB = b.room?.roomName || b.roomName || '';
         return nameA.localeCompare(nameB, 'vi', { sensitivity: 'base' });
       },
-      render: (record: any) => (
-        <Space>
-          <DesktopOutlined style={{ color: '#1677ff', fontSize: 16 }} />
-          <div>
-            <Text strong>{record.room?.roomName || record.roomName || 'N/A'}</Text>
-            {record.room?.location && (
-              <div style={{ fontSize: 11, color: '#8c8c8c' }}>{record.room.location}</div>
+      render: (record: any) => {
+        const roomData = record.room || rooms.find(r => r.id === (record.roomId || record.room?.id));
+        const tech = record.room?.technician || roomData?.technician;
+        return (
+          <Space direction="vertical" size={2}>
+            <Space>
+              <DesktopOutlined style={{ color: '#1677ff', fontSize: 16 }} />
+              <div>
+                <Text strong>{roomData?.roomName || record.roomName || 'N/A'}</Text>
+                {roomData?.location && (
+                  <div style={{ fontSize: 11, color: '#8c8c8c' }}>{roomData.location}</div>
+                )}
+              </div>
+            </Space>
+            {tech ? (
+              <Tooltip title={
+                <div>
+                  <b>Kỹ thuật viên phụ trách:</b><br />
+                  👤 Họ tên: {tech.fullName || tech.username}<br />
+                  {tech.email && <>✉️ Email: {tech.email}<br /></>}
+                  {tech.phoneNumber && <>📞 SĐT: {tech.phoneNumber}</>}
+                </div>
+              }>
+                <Tag color="cyan" style={{ fontSize: 11, borderRadius: 4, margin: 0, cursor: 'pointer' }}>
+                  🔧 KTV: {tech.fullName || tech.username}
+                </Tag>
+              </Tooltip>
+            ) : (
+              <Tag style={{ fontSize: 10, margin: 0, color: '#8c8c8c' }}>Chưa phân công KTV</Tag>
             )}
-          </div>
-        </Space>
-      )
+          </Space>
+        );
+      }
     },
     {
       title: 'Ngày mượn',
@@ -1122,19 +1148,36 @@ const TeacherBooking: React.FC = () => {
                 <div style={{ paddingTop: 8 }}>
                   {/* Controls Header: Select Room & Week Navigation */}
                   <Row gutter={[16, 16]} align="middle" justify="space-between" style={{ marginBottom: 16, background: '#fafafa', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
-                    <Col xs={24} md={8}>
-                      <Space align="center" style={{ width: '100%' }}>
+                    <Col xs={24} md={10}>
+                      <Space align="center" style={{ width: '100%' }} wrap>
                         <Text strong style={{ fontSize: 14 }}>Phòng máy:</Text>
                         <Select
-                          style={{ minWidth: 200 }}
+                          style={{ minWidth: 220 }}
                           value={selectedRoomId}
                           onChange={handleSelectRoom}
-                          options={rooms.map(r => ({ value: r.id, label: `${r.roomName} (${r.location || 'Khu Lab'})` }))}
+                          options={rooms.map(r => ({
+                            value: r.id,
+                            label: `${r.roomName} (${r.location || 'Khu Lab'})${r.technician ? ` - KTV: ${r.technician.fullName || r.technician.username}` : ''}`
+                          }))}
                         />
+                        {selectedRoomObj?.technician && (
+                          <Tooltip title={
+                            <div>
+                              <b>Kỹ thuật viên phụ trách:</b><br />
+                              👤 {selectedRoomObj.technician.fullName || selectedRoomObj.technician.username}<br />
+                              {selectedRoomObj.technician.email && <>✉️ {selectedRoomObj.technician.email}<br /></>}
+                              {selectedRoomObj.technician.phoneNumber && <>📞 {selectedRoomObj.technician.phoneNumber}</>}
+                            </div>
+                          }>
+                            <Tag color="cyan" style={{ margin: 0, padding: '2px 8px', fontSize: 11, borderRadius: 6, cursor: 'pointer' }}>
+                              🔧 KTV: <b>{selectedRoomObj.technician.fullName || selectedRoomObj.technician.username}</b>
+                            </Tag>
+                          </Tooltip>
+                        )}
                         {roomBookingsLoading && <Spin size="small" />}
                       </Space>
                     </Col>
-                    <Col xs={24} md={16} style={{ textAlign: 'right' }}>
+                    <Col xs={24} md={14} style={{ textAlign: 'right' }}>
                       <Space wrap align="center">
                         <Button
                           icon={<LeftOutlined />}
@@ -1445,12 +1488,23 @@ const TeacherBooking: React.FC = () => {
                                     <Tag color={isSelected ? 'blue' : 'default'} style={{ margin: 0, fontSize: 11, borderRadius: 10, padding: '0 8px' }}>
                                       💻 {room.totalSeats || 30} máy
                                     </Tag>
-                                    {room.technician && (
-                                      <Tooltip title={`KTV phụ trách: ${room.technician.fullName || room.technician.username}`}>
-                                        <Tag color="cyan" style={{ margin: 0, fontSize: 10, borderRadius: 10, padding: '0 6px' }}>
-                                          🔧 {room.technician.fullName?.split(' ').pop() || 'KTV'}
+                                    {room.technician ? (
+                                      <Tooltip title={
+                                        <div>
+                                          <b>Kỹ thuật viên phụ trách:</b><br />
+                                          👤 {room.technician.fullName || room.technician.username}<br />
+                                          {room.technician.email && <>✉️ {room.technician.email}<br /></>}
+                                          {room.technician.phoneNumber && <>📞 {room.technician.phoneNumber}</>}
+                                        </div>
+                                      }>
+                                        <Tag color="cyan" style={{ margin: 0, fontSize: 10, borderRadius: 10, padding: '0 6px', fontWeight: 500 }}>
+                                          🔧 {room.technician.fullName || room.technician.username}
                                         </Tag>
                                       </Tooltip>
+                                    ) : (
+                                      <Tag style={{ margin: 0, fontSize: 10, borderRadius: 10, padding: '0 6px', color: '#8c8c8c' }}>
+                                        Chưa có KTV
+                                      </Tag>
                                     )}
                                   </div>
                                 </div>
@@ -1780,11 +1834,50 @@ const TeacherBooking: React.FC = () => {
                             <Select placeholder="Chọn phòng máy" onChange={handleSelectRoom} size="middle">
                               {rooms.map(r => (
                                 <Select.Option key={r.id} value={r.id}>
-                                  {r.roomName} ({r.location || 'Khu Lab'}) - {r.totalSeats || 30} máy
+                                  {r.roomName} ({r.location || 'Khu Lab'}) - {r.totalSeats || 30} máy {r.technician ? `[KTV: ${r.technician.fullName || r.technician.username}]` : ''}
                                 </Select.Option>
                               ))}
                             </Select>
                           </Form.Item>
+
+                          {/* Hiển thị chi tiết Người phụ trách phòng máy */}
+                          {selectedRoomObj && (
+                            <div style={{
+                              background: selectedRoomObj.technician ? '#f6ffed' : '#fafafa',
+                              border: selectedRoomObj.technician ? '1px solid #b7eb8f' : '1px solid #e8e8e8',
+                              borderRadius: 8,
+                              padding: '10px 12px',
+                              marginBottom: 14,
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                                <Space size={6} align="center">
+                                  <UserOutlined style={{ color: selectedRoomObj.technician ? '#52c41a' : '#8c8c8c', fontSize: 14 }} />
+                                  <span style={{ fontSize: 12, color: selectedRoomObj.technician ? '#389e0d' : '#595959', fontWeight: 600 }}>
+                                    Người phụ trách phòng:
+                                  </span>
+                                  <Text strong style={{ fontSize: 12, color: selectedRoomObj.technician ? '#135200' : '#8c8c8c' }}>
+                                    {selectedRoomObj.technician ? (selectedRoomObj.technician.fullName || selectedRoomObj.technician.username) : 'Chưa phân công'}
+                                  </Text>
+                                </Space>
+                              </div>
+                              {selectedRoomObj.technician && (
+                                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 11, color: '#595959', flexWrap: 'wrap' }}>
+                                  {selectedRoomObj.technician.email && (
+                                    <span>
+                                      <MailOutlined style={{ marginRight: 4, color: '#1677ff' }} />
+                                      {selectedRoomObj.technician.email}
+                                    </span>
+                                  )}
+                                  {selectedRoomObj.technician.phoneNumber && (
+                                    <span>
+                                      <PhoneOutlined style={{ marginRight: 4, color: '#52c41a' }} />
+                                      {selectedRoomObj.technician.phoneNumber}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Render Recurring Options if selected */}
                           {bookingType === 'RECURRING' ? (
@@ -1935,7 +2028,7 @@ const TeacherBooking: React.FC = () => {
                 <Select placeholder="Chọn phòng máy" onChange={handleSelectRoom}>
                   {rooms.map(r => (
                     <Select.Option key={r.id} value={r.id}>
-                      {r.roomName} ({r.location || 'Khu Lab'}) - {r.totalSeats || 30} ghế
+                      {r.roomName} ({r.location || 'Khu Lab'}) - {r.totalSeats || 30} ghế {r.technician ? `[KTV: ${r.technician.fullName || r.technician.username}]` : ''}
                     </Select.Option>
                   ))}
                 </Select>
@@ -2029,6 +2122,11 @@ const TeacherBooking: React.FC = () => {
                 📌 Phòng: <b>{selectedRoomObj?.roomName || 'Chưa chọn'}</b>
               </Col>
               <Col span={12}>
+                👤 KTV phụ trách: <b style={{ color: selectedRoomObj?.technician ? '#0958d9' : '#8c8c8c' }}>
+                  {selectedRoomObj?.technician ? (selectedRoomObj.technician.fullName || selectedRoomObj.technician.username) : 'Chưa phân công'}
+                </b>
+              </Col>
+              <Col span={12} style={{ marginTop: 4 }}>
                 🔄 Chế độ: <b>{bookingType === 'RECURRING' ? `Tuần hoàn (${calculatedRecurringSessions.length} buổi)` : '1 buổi lẻ'}</b>
               </Col>
               <Col span={12} style={{ marginTop: 4 }}>

@@ -338,13 +338,13 @@ const RoomScheduleCalendar: React.FC = () => {
           <Col xs={24} md={12} style={{ textAlign: 'right' }}>
             <Space wrap>
               <Select
-                style={{ width: 220 }}
+                style={{ width: 280 }}
                 placeholder="Chọn phòng máy"
                 value={selectedRoomId}
                 onChange={(val) => setSelectedRoomId(val)}
                 options={rooms.map(r => ({
                   value: r.id,
-                  label: `${r.roomName} (${r.location || 'Khu Lab'})`
+                  label: `${r.roomName} (${r.location || 'Khu Lab'})${r.technician ? ` - KTV: ${r.technician.fullName || r.technician.username}` : ''}`
                 }))}
               />
               <Select
@@ -377,6 +377,12 @@ const RoomScheduleCalendar: React.FC = () => {
                 value={currentRoom.roomName}
                 prefix={<DesktopOutlined style={{ color: '#1890ff' }} />}
               />
+              <div style={{ marginTop: 4, fontSize: 12 }}>
+                <Text type="secondary">KTV: </Text>
+                <Tag color={currentRoom.technician ? 'cyan' : 'default'} style={{ margin: 0, fontSize: 11 }}>
+                  {currentRoom.technician ? (currentRoom.technician.fullName || currentRoom.technician.username) : 'Chưa phân công'}
+                </Tag>
+              </div>
             </Col>
             <Col xs={12} sm={6}>
               <Statistic
@@ -671,7 +677,7 @@ const RoomScheduleCalendar: React.FC = () => {
             <Select placeholder="Chọn phòng">
               {rooms.map(r => (
                 <Select.Option key={r.id} value={r.id}>
-                  {r.roomName} ({r.location || 'Khu Lab'})
+                  {r.roomName} ({r.location || 'Khu Lab'}) {r.technician ? `[KTV: ${r.technician.fullName || r.technician.username}]` : ''}
                 </Select.Option>
               ))}
             </Select>

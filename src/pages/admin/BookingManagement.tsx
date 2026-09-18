@@ -317,7 +317,7 @@ const BookingManagement: React.FC = () => {
       }
     },
     {
-      title: 'Phòng máy',
+      title: 'Phòng máy & KTV',
       key: 'room',
       sorter: (a, b) => {
         const roomA = a.room?.roomName || a.roomName || '';
@@ -325,11 +325,34 @@ const BookingManagement: React.FC = () => {
         return roomA.localeCompare(roomB, 'vi', { sensitivity: 'base' });
       },
       render: (_, record) => {
-        const roomName = record.room?.roomName || record.roomName || 'N/A';
+        const roomData = record.room || rooms.find(r => r.id === (record.roomId || record.room?.id));
+        const tech = record.room?.technician || roomData?.technician;
+        const roomName = roomData?.roomName || record.roomName || 'N/A';
         return (
-          <Space>
-            <DesktopOutlined style={{ color: '#52c41a' }} />
-            <Text strong>{roomName}</Text>
+          <Space direction="vertical" size={2}>
+            <Space>
+              <DesktopOutlined style={{ color: '#52c41a' }} />
+              <Text strong>{roomName}</Text>
+            </Space>
+            {roomData?.location && (
+              <div style={{ fontSize: 11, color: '#8c8c8c' }}>{roomData.location}</div>
+            )}
+            {tech ? (
+              <Tooltip title={
+                <div>
+                  <b>Kỹ thuật viên phụ trách:</b><br />
+                  👤 Họ tên: {tech.fullName || tech.username}<br />
+                  {tech.email && <>✉️ Email: {tech.email}<br /></>}
+                  {tech.phoneNumber && <>📞 SĐT: {tech.phoneNumber}</>}
+                </div>
+              }>
+                <Tag color="cyan" style={{ fontSize: 11, margin: 0, cursor: 'pointer' }}>
+                  🔧 KTV: {tech.fullName || tech.username}
+                </Tag>
+              </Tooltip>
+            ) : (
+              <Tag style={{ fontSize: 10, margin: 0, color: '#8c8c8c' }}>Chưa phân công KTV</Tag>
+            )}
           </Space>
         );
       }
@@ -670,7 +693,7 @@ const BookingManagement: React.FC = () => {
               <Select placeholder="Chọn phòng máy">
                 {rooms.map(r => (
                   <Select.Option key={r.id} value={r.id}>
-                    {r.roomName} ({r.location || 'Khu Lab'})
+                    {r.roomName} ({r.location || 'Khu Lab'}) {r.technician ? `[KTV: ${r.technician.fullName || r.technician.username}]` : ''}
                   </Select.Option>
                 ))}
               </Select>

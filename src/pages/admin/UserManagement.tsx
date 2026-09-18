@@ -37,7 +37,7 @@ const UserManagement: React.FC = () => {
       const response = await userApi.search({
         page,
         size,
-        filter,
+        filter: "isDeleted==0",
         sort: ['id,desc']
       });
       setUsers(response.data.content);

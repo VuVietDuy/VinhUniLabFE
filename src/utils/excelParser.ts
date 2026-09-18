@@ -1360,11 +1360,13 @@ export const exportBookingsToExcel = (
     RETURNED: 'Đã trả phòng',
   };
 
-  const roomMap = new Map<number, string>();
-  rooms.forEach((r) => roomMap.set(r.id, r.roomName));
+  const roomMap = new Map<number, Room>();
+  rooms.forEach((r) => roomMap.set(r.id, r));
 
   const exportData = bookings.map((b, index) => {
-    const roomName = (b.roomId ? roomMap.get(b.roomId) : undefined) || b.room?.roomName || b.roomName || 'Phòng máy';
+    const matchedRoom = (b.roomId ? roomMap.get(b.roomId) : undefined) || b.room;
+    const roomName = matchedRoom?.roomName || b.roomName || 'Phòng máy';
+    const technicianName = matchedRoom?.technician?.fullName || matchedRoom?.technician?.username || 'Chưa phân công';
     const userName = b.user?.fullName || b.userName || 'Giảng viên';
 
     const dateStr = b.bookingDate || (b.startTime?.includes('T') ? b.startTime.split('T')[0] : b.startTime) || '';
@@ -1375,6 +1377,7 @@ export const exportBookingsToExcel = (
       STT: index + 1,
       'Mã đặt phòng': `#${b.id}`,
       'Phòng máy': roomName,
+      'KTV phụ trách': technicianName,
       'Người mượn': userName,
       'Ngày đặt': dateStr,
       'Giờ bắt đầu': startStr,
@@ -1390,6 +1393,7 @@ export const exportBookingsToExcel = (
     { wch: 6 },  // STT
     { wch: 14 }, // Mã đặt phòng
     { wch: 22 }, // Phòng máy
+    { wch: 22 }, // KTV phụ trách
     { wch: 24 }, // Người mượn
     { wch: 14 }, // Ngày đặt
     { wch: 12 }, // Giờ BĐ
